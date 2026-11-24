@@ -813,6 +813,51 @@
         <strong>2. 费用与部分平仓盈亏为全生命周期累计数：</strong><code>fee</code> / <code>fundingFee</code> / <code>realizedPnl</code> 从 <code>cTime</code> 累加至今，单靠仓位接口无法拆出 10 月与 11 月各占多少。<br/>
         <strong>3. 跨期加减仓无法唯一反推 <code>pos(T0)</code> 与 <code>avgPx(T0)</code>：</strong>10 月开 10 张、11 月加 5 张再平 8 张后，当前只剩 7 张，必须靠 <code>fills-history</code> 倒推 1 号 0 点的精确张数与均价。
       </div>
+
+      <h3>4.2 账单（<code>bills-archive</code>）还原月初快照的原理、字段与查询范围</h3>
+      <p><strong>核心原理：</strong>OKX 交易账户账单类似<strong>银行流水账</strong>——任何改变现金余额的事件（平仓盈亏、手续费、资金费、划转、强平）都会记录一笔流水，且每一行都带有变动后的精确余额 <code>bal</code> 与变动额 <code>balChg</code>。因此可通过以下两种方式还原 <code>CashBal(T0)</code>（注意：未平仓浮盈 <code>UPL(T0)</code> 尚未进账单，需另由跨月持仓 + <code>markPx(T0)</code> 补齐）：</p>
+      <ul>
+        <li><strong>方法 1（最快，推荐）：</strong>直接查 <code>ts &lt;= T0</code> 的最新 1 条账单，读取其 <code>bal</code> 字段即为 <code>CashBal(T0)</code>（<strong>每币种仅 1 次请求，免分页</strong>）。</li>
+        <li><strong>方法 2（兜底）：</strong>若 T0 之前 3 个月无账单，则倒推 <code>CashBal(T0) = CashBal(Now) - Σ balChg(T0, Now]</code>。</li>
+      </ul>
+      <p><strong>用到的 5 个账单字段：</strong><code>ccy</code>（币种）、<code>ts</code>（时间戳）、<code>bal</code>（变动后账户余额）、<code>balChg</code>（本笔变动额）、<code>type</code>（账单类型，如 <code>1</code>=划转、<code>2</code>=交易、<code>8</code>=资金费）。</p>
+      <p><strong>如果用户有 N 个 <code>instId</code>，需要遍历 N 次吗？不需要！</strong></p>
+      <table>
+        <thead>
+          <tr>
+            <th style="width:26%;">查询目标</th>
+            <th style="width:26%;">查询维度（无需遍历 N 个 instId）</th>
+            <th style="width:24%;">时间范围</th>
+            <th style="width:24%;">接口开销</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong><code>CashBal(T0)</code>（方法 1）</strong></td>
+            <td>按 <strong><code>ccy</code></strong>（通常仅 1～4 个币种，如 USDT/BTC）</td>
+            <td><code>end = T0, limit = 1</code><br/><span style="font-size:12px;color:var(--muted);">（最多回溯 OKX 近 3 个月）</span></td>
+            <td><strong>每币种 1 次请求</strong></td>
+          </tr>
+          <tr>
+            <td><strong><code>CashBal(T0)</code>（方法 2 兜底）</strong></td>
+            <td>全账户一次查（不传 <code>instId</code>）</td>
+            <td><code>begin = T0, end = Now</code><br/><span style="font-size:12px;color:var(--muted);">（1～30 天，月内窗口）</span></td>
+            <td>按 100 条/页分页</td>
+          </tr>
+          <tr>
+            <td><strong>净划转 <code>NetTransfers</code></strong></td>
+            <td>全账户 + <code>type = 1</code>（不传 <code>instId</code>）</td>
+            <td><code>begin = T0, end = Now</code><br/><span style="font-size:12px;color:var(--muted);">（1～30 天）</span></td>
+            <td>通常 <strong>1 页</strong></td>
+          </tr>
+          <tr>
+            <td><strong>跨月仓位 <code>fills-history</code></strong></td>
+            <td><strong>仅</strong>查 <code>cTime &lt; T0</code> 的跨月合约（通常 0～3 个，非全部 N 个）</td>
+            <td><code>begin = T0, end = Now</code><br/><span style="font-size:12px;color:var(--muted);">（1～30 天）</span></td>
+            <td>仅跨月合约少量分页</td>
+          </tr>
+        </tbody>
+      </table>
     </section>
 
     <!-- SECTION 5 -->
