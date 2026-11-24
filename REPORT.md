@@ -29,53 +29,67 @@
 
 ### 3.1 方案 A：仓位增量法（纯合约榜单）
 
-**1. 结算币种 USD 汇率 $P_{\text{USD}}(\text{ccy}, t)$：**
-- 稳定币（`USD` / `USDT` / `USDC`）：$P_{\text{USD}} = 1.0$
+**1. 结算币种 USD 汇率 `P_usd(ccy, t)`：**
+- 稳定币（`USD` / `USDT` / `USDC`）：`P_usd = 1.0`
 - 币本位（`BTC` / `ETH` 等）：
-  - 持仓实时更新：$P_{\text{USD}} = \text{ws.idxPx}$（兜底 `ws.markPx`，无需额外 REST）
-  - 平仓落袋入账：$P_{\text{USD}} = \text{IndexCandle}(\text{ccy-USD},\ \text{uTime})$
+  - 持仓实时更新：`P_usd = ws.idxPx`（兜底 `ws.markPx`，无需额外 REST）
+  - 平仓落袋入账：`P_usd = IndexCandle(ccy-USD, uTime)`
 
-**2. 有符号张数 $Q(p)$ 与 $T_0$ 时刻未实现盈亏 $\text{UPL}_{\text{USD}}(p, T_0)$：**
-- `posSide == "net"` → $Q = \text{pos}$；`posSide == "long"` → $Q = +|\text{pos}|$；`posSide == "short"` → $Q = -|\text{pos}|$
+**2. 有符号张数 `Q(p)` 与 `T0` 时刻未实现盈亏 `UPL_usd(p, T0)`：**
+- `posSide == "net"` → `Q = pos`；`posSide == "long"` → `Q = +|pos|`；`posSide == "short"` → `Q = -|pos|`
 - **正向合约**（`ctType == "linear"`，如 `BTC-USDT-SWAP`、`BTC-USD_UM-261225`）：
 
-$$\text{UPL}_{\text{USD}}(p, T_0) = Q(p) \cdot \text{ctVal} \cdot \big(\text{markPx}(T_0) - \text{avgPx}\big) \cdot P_{\text{USD}}(\text{ccy}, T_0)$$
+```text
+UPL_usd(p, T0) = Q(p) × ctVal × (markPx(T0) - avgPx) × P_usd(ccy, T0)
+```
 
 - **反向/币本位合约**（`ctType == "inverse"`，如 `BTC-USD-SWAP`、`BTC-USD-261225`）：
 
-$$\text{UPL}_{\text{USD}}(p, T_0) = Q(p) \cdot \text{ctVal} \cdot \left(\frac{1}{\text{avgPx}} - \frac{1}{\text{markPx}(T_0)}\right) \cdot P_{\text{USD}}(\text{ccy}, T_0)$$
+```text
+UPL_usd(p, T0) = Q(p) × ctVal × (1 / avgPx - 1 / markPx(T0)) × P_usd(ccy, T0)
+```
 
-**3. 月初 0 点基线快照（仅对 $T_0$ 时刻未平仓位 $cTime < T_0$）：**
+**3. 月初 0 点基线快照（仅对 `T0` 时刻未平仓位 `cTime < T0`）：**
 
-$$\text{SnapshotPnL}(p, T_0) = \text{realizedPnl}(p, T_0) \cdot P_{\text{USD}}(\text{ccy}, T_0) + \text{UPL}_{\text{USD}}(p, T_0)$$
+```text
+SnapshotPnL(p, T0) = realizedPnl(p, T0) × P_usd(ccy, T0) + UPL_usd(p, T0)
+```
 
 > **重要：** OKX 的 `realizedPnl` 已自动包含 `pnl + fee + fundingFee + liqPenalty + settledPnl`，切勿重复加减手续费或资金费。
 
 **4. 单仓位本月贡献与用户月度总 PnL：**
 
-$$\text{MonthPnL}_{\text{closed}}(p) = \text{realizedPnl}_{\text{final}} \cdot P_{\text{USD}}(\text{ccy}, \text{uTime}) - \mathbb{I}(cTime < T_0)\cdot \text{SnapshotPnL}(p, T_0)$$
+```text
+MonthPnL_closed(p) = realizedPnl_final × P_usd(ccy, uTime) - (cTime < T0 ? SnapshotPnL(p, T0) : 0)
+MonthPnL_open(p)   = (realizedPnl_now + upl_now) × P_usd(ccy, Now) - (cTime < T0 ? SnapshotPnL(p, T0) : 0)
 
-$$\text{MonthPnL}_{\text{open}}(p) = (\text{realizedPnl}_{\text{now}} + \text{upl}_{\text{now}}) \cdot P_{\text{USD}}(\text{ccy}, \text{Now}) - \mathbb{I}(cTime < T_0)\cdot \text{SnapshotPnL}(p, T_0)$$
+MonthlyPnL_user = Σ MonthPnL_closed(p) + Σ MonthPnL_open(p)
+```
 
-$$\text{MonthlyPnL}_{\text{user}} = \sum_{p \in \text{Closed}(T_0, \text{Now}]} \text{MonthPnL}_{\text{closed}}(p) + \sum_{p \in \text{Open}(\text{Now})} \text{MonthPnL}_{\text{open}}(p)$$
-
-*(若只需用户级总榜单，可将 $\sum \text{SnapshotPnL}(p, T_0)$ 合并存为 1 条用户级标量 `user_t0_pos_pnl`，数学完全等价。)*
+*(若只需用户级总榜单，可将 `Σ SnapshotPnL(p, T0)` 合并存为 1 条用户级标量 `user_t0_pos_pnl`，数学完全等价。)*
 
 ---
 
 ### 3.2 方案 B：账户总权益法（全账户：现货 + 合约）
 
-$$\text{MonthlyPnL}_{\text{equity}} = \text{totalEq}(\text{Now}) - \text{NetTransfers}(T_0, \text{Now}] - \text{totalEq}(T_0)$$
+```text
+MonthlyPnL_equity = totalEq(Now) - NetTransfers(T0, Now] - totalEq(T0)
+```
 
 - **净划转（按天聚合，仅查 `bills-archive?type=1`）：**
 
-$$\text{DailyNetTransfer}(d) = \sum_{b \in \text{bills}(d),\ \text{type}=1} b.\text{balChg} \cdot P_{\text{USD}}(b.\text{ccy}, b.\text{ts}), \qquad \text{NetTransfers}(T_0, \text{Now}] = \sum_{d=T_0}^{\text{Today}} \text{DailyNetTransfer}(d)$$
+```text
+DailyNetTransfer(day) = Σ [ bill.balChg × P_usd(bill.ccy, bill.ts) ]   (balChg > 0 转入，< 0 转出)
+NetTransfers(T0, Now] = Σ DailyNetTransfer(day)                        (最多 30 条日聚合记录相加)
+```
 
-- **缺失 $\text{totalEq}(T_0)$ 快照时的还原：**
+- **缺失 `totalEq(T0)` 快照时的还原：**
 
-$$\text{totalEq}(T_0) = \sum_{c} \text{CashBal}_c(T_0) \cdot P_{\text{USD}}(c, T_0) + \sum_{p \in \text{Open}(T_0)} \text{UPL}_{\text{USD}}(p, T_0)$$
+```text
+totalEq(T0) = Σ [ CashBal_c(T0) × P_usd(c, T0) ] + Σ UPL_usd(p, T0)
+```
 
-其中 $\text{CashBal}_c(T_0)$ 直接读取 `GET /api/v5/account/bills-archive?ccy=c&end=T0&limit=1` 的 `bal` 字段（1 次请求，免分页）。
+其中 `CashBal_c(T0)` 直接读取 `GET /api/v5/account/bills-archive?ccy=c&end=T0&limit=1` 的 `bal` 字段（1 次请求，免分页）。
 
 ---
 
