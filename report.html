@@ -356,11 +356,28 @@
           </tr>
           <tr>
             <td><strong>工程复杂度</strong></td>
-            <td><span class="tag tag-err">重（高频分页 + 对账复杂）</span></td>
-            <td><span class="tag tag-ok">极轻（状态机清晰，易于横向扩展）</span></td>
+            <td><span class="tag tag-ok">WS 状态机更简单</span>（无全平延迟队列；按 <code>type=1</code> 过滤划转 + 按日聚合后极轻）</td>
+            <td><span class="tag tag-info">需维护全平闭环</span>（<code>pending_close</code> + <code>(posId, cTime)</code> 延迟重试）</td>
+          </tr>
+          <tr>
+            <td><strong>10 万用户计算性能</strong></td>
+            <td><strong><code>O(1)</code></strong>（<code>totalEq - 30天日聚合划转 - t0_eq</code>，内存 &lt;100MB）</td>
+            <td><strong><code>O(1)</code></strong>（单仓位增量差值更新，活跃仓位 ~10–30 万行，内存 &lt;150MB）</td>
+          </tr>
+          <tr>
+            <td><strong>月中无快照补数速度</strong></td>
+            <td>快：<code>bills-archive?end=T0&amp;limit=1</code> 单次拿 <code>Cash@T0</code> + <code>type=1</code> 查划转 + 跨月 <code>UPL@T0</code></td>
+            <td>快：无跨月持仓仅 2 次 REST（~200ms）；有跨月仅按 <code>instId</code> 局部补数</td>
           </tr>
         </tbody>
       </table>
+
+      <div class="callout callout-blue">
+        <strong>10 万用户量级性能结论与最终选型：</strong><br/>
+        • <strong>性能都不是瓶颈：</strong>两种方案在 Redis/内存层均为 <code>O(1)</code> 增量更新，无需担心 <code>monthly_position_snapshots</code> 计算慢（若按用户级汇总 <code>user_t0_pos_pnl</code>，同样仅 10 万行/月）。<br/>
+        • <strong>选「优化版 <code>totalEq</code> + 按日聚合 <code>type=1</code> 划转」：</strong>如果产品需要<strong>现货 + 合约全账户榜单</strong>，且希望 WS 状态机最简（无需处理 <code>pos=="0"</code> 延迟队列）。<br/>
+        • <strong>选「<code>positions</code> + WS 增量」：</strong>如果产品定位是<strong>纯合约交易榜单</strong>，希望彻底排除现货 BTC/ETH 持仓涨跌和充提划转的干扰。
+      </div>
     </section>
 
     <!-- SECTION 3 -->

@@ -18,6 +18,10 @@ For the full Chinese technical feasibility report (with architecture flowcharts,
   - Positions with `cTime >= T0` are immediately 100% exact (2 REST calls, 0 `bills`).
   - Only if cross-month positions (`cTime < T0`) exist: use either mark-candle `UPL(T0)` approximation (zero `bills`) or a one-time scoped `fills-history` + `bills-archive` backfill for that specific `instId`, then switch permanently to WS incremental.
 
+- **Alternative Lightweight Architecture (`totalEq` + Daily `type=1` Transfer Aggregation):**
+  - If your leaderboard should include **Spot + Derivatives combined** and you want a simpler WS state machine (no `pos == "0"` retry queue), use `totalEq(Now) - SUM(daily_net_transfer_usd) - totalEq(T0)` with WS `account`, filtering `bills-archive` strictly by `type=1` (usually <1 page/month) and reconstructing missing `Cash@T0` in 1 call via `bills-archive?ccy=<ccy>&end=T0&limit=1`.
+  - Both architectures compute in **`O(1)` per WS event** at 100k-user scale (<150 MB RAM).
+
 ---
 
 ## Project Structure
