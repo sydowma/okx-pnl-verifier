@@ -965,6 +965,13 @@ MonthlyPnL = closed_pnl_usd + sum(open_positions_pnl.values())
         </tbody>
       </table>
 
+      <div class="callout callout-amber">
+        <strong>快照粒度选型：<code>monthly_position_snapshots</code> 必须按仓位维度存吗？能改成按用户存 1 条吗？</strong><br/>
+        • <strong>不能存成用户总资产 <code>totalEq(T0)</code>：</strong>资产快照只能配合 <code>totalEq - NetTransfers</code> 权益法使用，无法与 <code>positions</code> 仓位法混用。<br/>
+        • <strong>可以汇总成用户级「0 点持仓总盈亏」单值（<code>user_t0_pos_pnl = Σ(realizedPnl@T0 + upl@T0)</code>）：</strong>从代数上，T0 时刻未平的每个仓位要么此刻仍未平、要么已在本月平仓，因此对<strong>用户级月度总 PnL</strong> 而言，存 1 条用户级汇总值（10 万行/月）与按仓位明细存储<strong>数学完全等价</strong>。<br/>
+        • <strong>何时保留仓位级明细表：</strong>需要前端展示「单个仓位本月赚了多少」、或需要逐合约对账/排查 <code>pending_close</code> 与月中补数明细时，保留仓位维度表更便于审计。
+      </div>
+
       <div class="callout callout-blue">
         <strong>综合评估结论：</strong><br/>
         • <strong>场景一（10 万提前预热用户）：</strong>预热期匀速平滑拉取（~30–55 QPS），0 点 <strong>0 次 OKX REST</strong>、<strong>0 毫秒价格偏移</strong>、<strong>100% 精确</strong>。<br/>
