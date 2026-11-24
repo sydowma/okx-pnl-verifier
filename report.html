@@ -383,12 +383,50 @@
     <!-- SECTION 3 -->
     <section id="s3">
       <h2>三、系统核心架构与运行流程图</h2>
-      <p>推荐方案的核心公式非常简洁，将月度 PnL 拆分为「本月已平仓落袋盈亏」与「当前未平仓实时盈亏」两部分：</p>
-      <div class="formula-box">
-MonthlyPnL(T0 → Now) = closed_pnl_usd + Σ open_positions_pnl_usd
+      <p>下面给出两种方案的<strong>完整数学计算公式（精确到 OKX 字段名与正反向合约差异）</strong>，研发可直接按公式实现，无任何歧义：</p>
 
-  • 月内新开仓位 (cTime &gt;= T0)：单仓位贡献 = (realizedPnl + upl) × ccy_usd_px
-  • 跨月老仓位   (cTime &lt;  T0)：单仓位贡献 = (realizedPnl + upl) × ccy_usd_px - snapshot_pnl(T0)
+      <h3>3.1 方案一：仓位增量法完整公式（推荐 — 纯合约榜单）</h3>
+      <div class="formula-box">
+【步骤 1：结算币种折算 USD 汇率 P_usd(ccy, t)】
+  • 稳定币 (ccy ∈ {USD, USDT, USDC})：P_usd = 1.0
+  • 币本位 (ccy ∈ {BTC, ETH, ...})：
+      - 持仓实时计算：P_usd = ws.idxPx（兜底 ws.markPx，0 REST）
+      - 平仓落袋计算：P_usd = IndexCandle(ccy-USD, uTime)
+
+【步骤 2：有符号持仓张数 Q(p) 与 T0 时刻未实现盈亏 UPL_usd(p, T0)】
+  • Q(p) 规则：posSide=="net" → pos；posSide=="long" → +|pos|；posSide=="short" → -|pos|
+  • 正向合约 (ctType == "linear"，如 BTC-USDT-SWAP / BTC-USD_UM-261225)：
+      UPL_usd(p, T0) = Q(p) × ctVal × (markPx(T0) - avgPx) × P_usd(ccy, T0)
+  • 反向/币本位合约 (ctType == "inverse"，如 BTC-USD-SWAP / BTC-USD-261225)：
+      UPL_usd(p, T0) = Q(p) × ctVal × (1 / avgPx - 1 / markPx(T0)) × P_usd(ccy, T0)
+
+【步骤 3：月初 0 点基线快照（仅对 T0 时刻未平仓位 cTime &lt; T0）】
+  SnapshotPnL(p, T0) = realizedPnl(p, T0) × P_usd(ccy, T0) + UPL_usd(p, T0)
+  ※ 注意：OKX 的 realizedPnl 已包含 pnl + fee + fundingFee + liqPenalty + settledPnl，切勿重复加减手续费！
+
+【步骤 4：单仓位本月贡献 MonthPnL(p)】
+  • 本月已平仓 (positions-history，按 (posId, cTime) 精确匹配)：
+      MonthPnL_closed(p) = realizedPnl_final × P_usd(ccy, uTime) - (cTime &lt; T0 ? SnapshotPnL(p, T0) : 0)
+  • 当前未平仓 (WS positions 实时推送)：
+      MonthPnL_open(p)   = (realizedPnl_now + upl_now) × P_usd(ccy, Now) - (cTime &lt; T0 ? SnapshotPnL(p, T0) : 0)
+
+【步骤 5：用户月度总 PnL】
+  MonthlyPnL_user = Σ MonthPnL_closed(p) + Σ MonthPnL_open(p)
+  （等价用户级简写：Σ LifetimePnL_closed + Σ LifetimePnL_open - UserSnapshotPnL_at_T0）
+      </div>
+
+      <h3>3.2 方案二：账户总权益法完整公式（全账户：现货 + 合约）</h3>
+      <div class="formula-box">
+【核心公式】
+  MonthlyPnL_equity = totalEq(Now) - NetTransfers(T0, Now] - totalEq(T0)
+
+【净划转（仅查 bills-archive?type=1，按天聚合为 daily_net_transfer_usd）】
+  DailyNetTransfer(day) = Σ [ bill.balChg × P_usd(bill.ccy, bill.ts) ]   (balChg &gt; 0 转入，&lt; 0 转出)
+  NetTransfers(T0, Now] = Σ DailyNetTransfer(day)                        (最多 30 条日聚合记录相加)
+
+【缺失 totalEq(T0) 快照时的还原公式】
+  totalEq(T0) = Σ [ CashBal_c(T0) × P_usd(c, T0) ] + Σ UPL_usd(p, T0)
+  ※ CashBal_c(T0) 直接取 GET /api/v5/account/bills-archive?ccy=c&amp;end=T0&amp;limit=1 返回的 bal 字段（1 次请求，免分页）
       </div>
 
       <div class="diagram-card">
