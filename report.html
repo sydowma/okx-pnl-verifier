@@ -652,6 +652,69 @@
           </tr>
         </tbody>
       </table>
+
+      <h3>6.2 真实账号离线账单对账实测（OKX 页面 <code>D0C966FF189159E1</code> · <code>2026-10-01 00:00</code> → <code>Now</code>）</h3>
+      <p>在无 OpenAPI 权限场景下，我们直接基于 OKX 平台导出的<strong>统一交易账单 CSV + 历史委托单 CSV</strong>（<code>2026-08-23 ~ 2026-11-23</code>，UTC+8）结合公共指数 K 线，对公开交易员 <code>D0C966FF189159E1</code> 从 <code>2026-10-01 00:00</code> 至今的收益与 56 天每日 0 点曲线进行了离线还原，并与 OKX 官方页面展示值逐项对账：</p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>对账口径</th>
+            <th class="num">期初权益 Eq0 (10-01)</th>
+            <th class="num">期末权益 Eq(Now)</th>
+            <th class="num">扣除划转</th>
+            <th class="num">累计 PnL ($)</th>
+            <th class="num">总收益率 (%)</th>
+            <th>与 OKX 页面偏差</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>OKX 页面官方展示值</strong><br/><span style="font-size:12px;color:var(--muted);">总收益额 / 总收益率（含现货）</span></td>
+            <td class="num">~$4.4397<br/><span style="font-size:11px;color:var(--muted);">（反推分母）</span></td>
+            <td class="num">—</td>
+            <td class="num">仅外部充提 ($0)</td>
+            <td class="num"><strong>-$1.24</strong></td>
+            <td class="num"><strong>-27.93%</strong></td>
+            <td><span class="tag tag-info">官方基准</span></td>
+          </tr>
+          <tr>
+            <td><strong>全 OKX 账户口径还原</strong><br/><span style="font-size:12px;color:var(--muted);">交易+资金合并，不扣内部划转</span></td>
+            <td class="num">$4.4159</td>
+            <td class="num">$3.1838<br/><span style="font-size:11px;color:var(--muted);">（含 11-24 新仓 -$0.0195）</span></td>
+            <td class="num">$0.0000</td>
+            <td class="num" style="color:var(--green);font-weight:700;">-$1.2321</td>
+            <td class="num" style="color:var(--green);font-weight:700;">-27.90%</td>
+            <td><span class="tag tag-ok">误差 $0.008 / 0.03%</span></td>
+          </tr>
+          <tr>
+            <td><strong>纯交易账户 <code>totalEq</code> 口径</strong><br/><span style="font-size:12px;color:var(--muted);">扣除资金↔交易划转 +$0.2243</span></td>
+            <td class="num">$4.4158</td>
+            <td class="num">$3.2027</td>
+            <td class="num">+$0.2243</td>
+            <td class="num">-$1.4374</td>
+            <td class="num">-22.58%<br/><span style="font-size:11px;color:var(--muted);">(Eq0+转入)</span></td>
+            <td><span class="tag tag-warn">差 10-09 SOL 内部划转</span></td>
+          </tr>
+          <tr>
+            <td><strong>OKX <code>public-pnl(SWAP)</code> 接口</strong><br/><span style="font-size:12px;color:var(--muted);">仅带单永续合约（不含现货/交割/Bot）</span></td>
+            <td class="num">$5.7831<br/><span style="font-size:11px;color:var(--muted);">(investAmt)</span></td>
+            <td class="num">—</td>
+            <td class="num">—</td>
+            <td class="num">-$0.4140<br/><span style="font-size:11px;color:var(--muted);">(10-01→11-23)</span></td>
+            <td class="num">-6.00%<br/><span style="font-size:11px;color:var(--muted);">(90d)</span></td>
+            <td><span class="tag tag-info">与 CSV 永续差 $0.002</span></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="callout callout-blue">
+        <strong>离线对账核心结论与过程发现（4 点关键洞察）：</strong><br/>
+        1. <strong>OKX 页面「总收益额 -$1.24 / 总收益率 -27.93%」明确包含现货：</strong>由 <code>-1.24 / -27.93% ≈ $4.44</code> 反推，与 10 月 1 日 0 点全账户总权益 <code>$4.4159</code>（BTC 现货 $2.01 + XMU 现货 $1.23 + USDT $1.18）严丝合缝。<br/>
+        2. <strong>交易账户 vs 全 OKX 账户的划转口径差异：</strong>10-09 转入 <code>+$0.2249 SOL</code>、10-12 转出 <code>-$1.7249 USDT</code>、10-15 转入 <code>+$1.7243 USDT</code> 均为「资金账户 ↔ 交易账户」内部划转。若按 OKX 全账户口径（仅剔除外部充提、不剔除内部划转），还原结果为 <strong><code>-$1.2321</code>（<code>-27.90%</code>）</strong>，与 OKX 页面 <strong><code>-$1.24</code>（<code>-27.93%</code>）仅差 0.03%（不到 1 美分）</strong>！<br/>
+        3. <strong>策略子钱包（Bot）多余额防坑：</strong>导出账单中包含 1,176 条 <code>('划转', '')</code> 内部策略子钱包划转与小时级利息，通过从 T0 正向累加 <code>交易账户余额变动 + 仓位余额变动</code>（配对内部划转自动抵消为 0），56 天每日 0 点曲线期末余额与账单最终余额校验误差 <strong>&lt; 1.5e-7</strong>。<br/>
+        4. <strong>OKX <code>public-pnl?instType=SWAP</code> 接口≠页面总收益：</strong>该公开接口分子仅统计手动带单永续合约（无带单持仓的日子曲线完全水平），不含现货、交割合约（AAPL +$0.25）及策略机器人（SATS -$0.04）。
+      </div>
     </section>
 
     <!-- SECTION 7 -->

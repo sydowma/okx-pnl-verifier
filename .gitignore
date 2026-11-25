@@ -3,3 +3,7 @@
 __pycache__/
 *.pyc
 .pytest_cache/
+pnl_curve.html
+pnl_curve_only.html
+live_pnl_dashboard.html
+okx_trader_profile.html
