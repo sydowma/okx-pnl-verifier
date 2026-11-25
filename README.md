@@ -5,6 +5,7 @@ A Python verification toolkit and reference implementation for building a **mont
 For the full Chinese technical feasibility report:
 - **Interactive Web Report (GitHub Pages, with animated SVG diagrams):** https://sydowma.github.io/okx-pnl-verifier/report.html
 - **GitHub Markdown Version (Mermaid diagrams):** [REPORT.md](./REPORT.md)
+- **Offline CSV Real-Account Reconciliation Walkthrough (Chinese):** [RECONCILIATION.md](./RECONCILIATION.md)
 
 ---
 
