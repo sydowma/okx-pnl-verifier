@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>OKX OpenAPI 月度榜单 PnL 计算方案 — 技术可行性验证报告</title>
+  <title>OKX OpenAPI 月度榜单（现货 + 合约）PnL 计算方案 — 可行性验证报告</title>
   <style>
     :root, [data-theme="dark"] {
       --bg: #070b14;
       --bg-grad-1: rgba(56, 189, 248, 0.12);
       --bg-grad-2: rgba(16, 185, 129, 0.10);
-      --surface: rgba(15, 23, 42, 0.78);
+      --surface: rgba(15, 23, 42, 0.80);
       --surface-solid: #0f172a;
       --surface-2: rgba(30, 41, 59, 0.65);
       --ink: #f8fafc;
@@ -40,7 +40,7 @@
       --bg: #f8fafc;
       --bg-grad-1: rgba(2, 132, 199, 0.08);
       --bg-grad-2: rgba(16, 185, 129, 0.07);
-      --surface: rgba(255, 255, 255, 0.92);
+      --surface: rgba(255, 255, 255, 0.94);
       --surface-solid: #ffffff;
       --surface-2: #f1f5f9;
       --ink: #0f172a;
@@ -79,57 +79,35 @@
         linear-gradient(to right, var(--border) 1px, transparent 1px),
         linear-gradient(to bottom, var(--border) 1px, transparent 1px);
       background-size: 100% 100%, 100% 100%, 48px 48px, 48px 48px;
-      background-position: 0 0, 0 0, -1px -1px, -1px -1px;
       color: var(--body);
       line-height: 1.75;
       font-size: 15px;
       transition: background-color 0.3s ease, color 0.3s ease;
     }
 
-    /* Reading Progress Bar */
     .progress-bar {
       position: fixed;
       top: 0; left: 0;
-      height: 3px;
-      width: 0%;
+      height: 3px; width: 0%;
       background: linear-gradient(90deg, #38bdf8, #34d399, #818cf8);
       z-index: 1000;
-      transition: width 0.1s linear;
     }
-
-    /* Sticky Glass Nav */
     .top-nav {
-      position: sticky;
-      top: 0;
-      z-index: 900;
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      background: color-mix(in srgb, var(--surface-solid) 78%, transparent);
+      position: sticky; top: 0; z-index: 900;
+      backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+      background: color-mix(in srgb, var(--surface-solid) 80%, transparent);
       border-bottom: 1px solid var(--border);
     }
     .nav-inner {
-      max-width: 1040px;
-      margin: 0 auto;
-      padding: 10px 20px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 14px;
+      max-width: 1040px; margin: 0 auto; padding: 10px 20px;
+      display: flex; align-items: center; justify-content: space-between; gap: 14px;
     }
     .nav-brand {
-      display: flex;
-      align-items: center;
-      gap: 9px;
-      font-weight: 700;
-      font-size: 14px;
-      color: var(--ink);
-      white-space: nowrap;
+      display: flex; align-items: center; gap: 9px;
+      font-weight: 700; font-size: 14px; color: var(--ink); white-space: nowrap;
     }
     .live-dot {
-      width: 9px; height: 9px;
-      border-radius: 50%;
-      background: var(--green);
-      box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.7);
+      width: 9px; height: 9px; border-radius: 50%; background: var(--green);
       animation: pulse-ring 2s infinite;
     }
     @keyframes pulse-ring {
@@ -137,366 +115,151 @@
       70% { box-shadow: 0 0 0 9px rgba(52, 211, 153, 0); }
       100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0); }
     }
-    .nav-links {
-      display: flex;
-      gap: 6px;
-      overflow-x: auto;
-      scrollbar-width: none;
-    }
+    .nav-links { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
     .nav-links::-webkit-scrollbar { display: none; }
     .nav-links a {
-      color: var(--muted);
-      text-decoration: none;
-      font-size: 12.5px;
-      padding: 5px 10px;
-      border-radius: 6px;
-      white-space: nowrap;
-      transition: all 0.2s ease;
+      color: var(--muted); text-decoration: none; font-size: 12.5px;
+      padding: 5px 10px; border-radius: 6px; white-space: nowrap; transition: all 0.2s ease;
     }
-    .nav-links a:hover, .nav-links a.active {
-      color: var(--ink);
-      background: var(--primary-soft);
-    }
+    .nav-links a:hover, .nav-links a.active { color: var(--ink); background: var(--primary-soft); }
     .theme-btn {
-      border: 1px solid var(--border-strong);
-      background: var(--surface-2);
-      color: var(--ink);
-      border-radius: 8px;
-      padding: 5px 11px;
-      font-size: 12.5px;
-      cursor: pointer;
-      white-space: nowrap;
-      transition: transform 0.15s ease, border-color 0.2s ease;
+      border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--ink);
+      border-radius: 8px; padding: 5px 11px; font-size: 12.5px; cursor: pointer; white-space: nowrap;
     }
-    .theme-btn:hover { border-color: var(--primary); transform: translateY(-1px); }
+    .theme-btn:hover { border-color: var(--primary); }
 
-    /* Main Container */
     .paper {
-      max-width: 1020px;
-      margin: 28px auto 72px;
-      background: var(--surface);
-      backdrop-filter: blur(18px);
-      -webkit-backdrop-filter: blur(18px);
-      border: 1px solid var(--border);
-      border-radius: 18px;
-      box-shadow: var(--shadow);
+      max-width: 1020px; margin: 28px auto 72px;
+      background: var(--surface); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+      border: 1px solid var(--border); border-radius: 18px; box-shadow: var(--shadow);
       padding: 44px 48px 52px;
     }
-    @media (max-width: 720px) {
-      .paper { padding: 24px 18px 36px; margin: 14px 10px 48px; }
-    }
+    @media (max-width: 720px) { .paper { padding: 24px 18px 36px; margin: 14px 10px 48px; } }
 
-    /* Hero */
-    .doc-header {
-      border-bottom: 1px solid var(--border);
-      padding-bottom: 26px;
-      margin-bottom: 28px;
-    }
+    .doc-header { border-bottom: 1px solid var(--border); padding-bottom: 26px; margin-bottom: 28px; }
     .hero-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 5px 13px;
-      border-radius: 999px;
-      background: var(--green-soft);
-      border: 1px solid var(--green-border);
-      color: var(--green);
-      font-size: 12.5px;
-      font-weight: 600;
-      margin-bottom: 14px;
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 5px 13px; border-radius: 999px;
+      background: var(--green-soft); border: 1px solid var(--green-border);
+      color: var(--green); font-size: 12.5px; font-weight: 600; margin-bottom: 14px;
     }
     h1 {
-      font-size: 32px;
-      font-weight: 800;
-      line-height: 1.25;
-      letter-spacing: -0.025em;
-      margin-bottom: 12px;
+      font-size: 31px; font-weight: 800; line-height: 1.28; letter-spacing: -0.025em; margin-bottom: 12px;
       background: linear-gradient(120deg, var(--ink) 35%, var(--primary) 80%, var(--green) 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
     }
-    .doc-meta {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px 20px;
-      font-size: 13px;
-      color: var(--muted);
-    }
+    .doc-meta { display: flex; flex-wrap: wrap; gap: 10px 20px; font-size: 13px; color: var(--muted); }
 
-    /* Scroll Reveal */
-    .reveal {
-      opacity: 0;
-      transform: translateY(18px);
-      transition: opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1), transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
-    }
-    .reveal.visible {
-      opacity: 1;
-      transform: translateY(0);
-    }
+    .reveal { opacity: 0; transform: translateY(16px); transition: opacity 0.5s ease, transform 0.5s ease; }
+    .reveal.visible { opacity: 1; transform: translateY(0); }
 
     h2 {
-      font-size: 21px;
-      color: var(--ink);
-      font-weight: 700;
-      margin: 40px 0 16px;
-      padding-left: 14px;
-      border-left: 4px solid var(--primary);
+      font-size: 21px; color: var(--ink); font-weight: 700;
+      margin: 40px 0 16px; padding-left: 14px; border-left: 4px solid var(--primary);
       scroll-margin-top: 72px;
     }
-    h3 {
-      font-size: 16px;
-      color: var(--ink);
-      font-weight: 600;
-      margin: 24px 0 10px;
-    }
+    h3 { font-size: 16px; color: var(--ink); font-weight: 600; margin: 24px 0 10px; }
     p { margin-bottom: 12px; }
     ul, ol { padding-left: 22px; margin-bottom: 14px; }
     li { margin-bottom: 6px; }
 
-    /* Summary Box */
     .summary-box {
       background: linear-gradient(135deg, var(--green-soft), var(--primary-soft));
-      border: 1px solid var(--green-border);
-      border-radius: 12px;
-      padding: 20px 24px;
-      margin: 16px 0 24px;
+      border: 1px solid var(--green-border); border-radius: 12px;
+      padding: 20px 24px; margin: 16px 0 24px;
     }
-    .summary-box .title {
-      font-weight: 700;
-      color: var(--green);
-      font-size: 16px;
-      margin-bottom: 10px;
-    }
+    .summary-box .title { font-weight: 700; color: var(--green); font-size: 16px; margin-bottom: 10px; }
 
-    /* KPI Cards */
-    .kpi-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 14px;
-      margin: 18px 0 26px;
-    }
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin: 18px 0 26px; }
     .kpi {
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 18px 18px;
-      background: var(--surface-2);
-      transition: transform 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease;
+      border: 1px solid var(--border); border-radius: 12px; padding: 18px;
+      background: var(--surface-2); transition: transform 0.2s ease, border-color 0.2s ease;
     }
-    .kpi:hover {
-      transform: translateY(-4px);
-      border-color: var(--primary);
-      box-shadow: 0 10px 26px rgba(56, 189, 248, 0.14);
-    }
+    .kpi:hover { transform: translateY(-3px); border-color: var(--primary); }
     .kpi .k-label { font-size: 12px; color: var(--muted); font-weight: 600; }
-    .kpi .k-val {
-      font-size: 26px;
-      font-weight: 800;
-      margin: 6px 0 4px;
-      font-variant-numeric: tabular-nums;
-      color: var(--ink);
-    }
+    .kpi .k-val { font-size: 25px; font-weight: 800; margin: 6px 0 4px; font-variant-numeric: tabular-nums; color: var(--ink); }
     .kpi .k-val.ok { color: var(--green); }
     .kpi .k-val.blue { color: var(--primary); }
     .kpi .k-sub { font-size: 12px; color: var(--muted); }
 
-    /* Interactive Tabs */
-    .tab-bar {
-      display: inline-flex;
-      gap: 6px;
-      background: var(--surface-2);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 4px;
-      margin: 8px 0 14px;
-    }
-    .tab-btn {
-      border: none;
-      background: transparent;
-      color: var(--muted);
-      padding: 7px 16px;
-      border-radius: 7px;
-      font-size: 13.5px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s ease;
-    }
-    .tab-btn.active {
-      background: var(--primary);
-      color: #0b1220;
-      box-shadow: 0 4px 12px rgba(56, 189, 248, 0.3);
-    }
-    .tab-panel { display: none; animation: fadeSlide 0.3s ease; }
-    .tab-panel.active { display: block; }
-    @keyframes fadeSlide {
-      from { opacity: 0; transform: translateY(6px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    /* Formula Code Box with Copy Button */
     .formula-wrap { position: relative; margin: 12px 0 20px; }
     .formula-box {
-      background: var(--code-bg);
-      color: var(--code-fg);
-      border: 1px solid var(--border-strong);
-      border-radius: 12px;
-      padding: 18px 20px;
-      font-family: "SFMono-Regular", Consolas, Menlo, monospace;
-      font-size: 13.2px;
-      line-height: 1.75;
-      overflow-x: auto;
-      white-space: pre-wrap;
+      background: var(--code-bg); color: var(--code-fg);
+      border: 1px solid var(--border-strong); border-radius: 12px;
+      padding: 18px 20px; font-family: "SFMono-Regular", Consolas, Menlo, monospace;
+      font-size: 13.2px; line-height: 1.75; overflow-x: auto; white-space: pre-wrap;
     }
     .copy-btn {
-      position: absolute;
-      top: 10px; right: 10px;
-      border: 1px solid rgba(148, 163, 184, 0.3);
-      background: rgba(30, 41, 59, 0.85);
-      color: #cbd5e1;
-      border-radius: 6px;
-      padding: 4px 10px;
-      font-size: 12px;
-      cursor: pointer;
-      transition: all 0.15s ease;
+      position: absolute; top: 10px; right: 10px;
+      border: 1px solid rgba(148, 163, 184, 0.3); background: rgba(30, 41, 59, 0.85);
+      color: #cbd5e1; border-radius: 6px; padding: 4px 10px; font-size: 12px; cursor: pointer;
     }
     .copy-btn:hover { background: var(--primary); color: #0f172a; border-color: var(--primary); }
 
-    /* SVG Diagram Card + Animated Flow */
     .diagram-card {
-      background: var(--svg-bg);
-      border: 1px solid var(--border-strong);
-      border-radius: 14px;
-      padding: 20px 16px 14px;
-      margin: 18px 0 24px;
-      overflow-x: auto;
+      background: var(--svg-bg); border: 1px solid var(--border-strong);
+      border-radius: 14px; padding: 20px 16px 14px; margin: 18px 0 24px; overflow-x: auto;
     }
-    .diagram-caption {
-      text-align: center;
-      font-size: 12.5px;
-      color: var(--muted);
-      margin-top: 12px;
-    }
-    .flow-line {
-      stroke-dasharray: 8 6;
-      animation: dash-flow 1.4s linear infinite;
-    }
-    .flow-line-slow {
-      stroke-dasharray: 6 6;
-      animation: dash-flow 2.2s linear infinite;
-    }
-    @keyframes dash-flow {
-      from { stroke-dashoffset: 28; }
-      to { stroke-dashoffset: 0; }
-    }
+    .diagram-caption { text-align: center; font-size: 12.5px; color: var(--muted); margin-top: 12px; }
+    .flow-line { stroke-dasharray: 8 6; animation: dash-flow 1.4s linear infinite; }
+    .flow-line-slow { stroke-dasharray: 6 6; animation: dash-flow 2.2s linear infinite; }
+    @keyframes dash-flow { from { stroke-dashoffset: 28; } to { stroke-dashoffset: 0; } }
 
-    /* Interactive Sequence Simulator */
-    .sim-bar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin-bottom: 12px;
-      padding: 10px 14px;
-      border-radius: 10px;
-      background: var(--surface-2);
-      border: 1px solid var(--border);
-    }
-    .sim-btn {
-      background: linear-gradient(135deg, #0284c7, #10b981);
-      color: #ffffff;
-      border: none;
-      border-radius: 8px;
-      padding: 7px 15px;
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-      box-shadow: 0 4px 14px rgba(16, 185, 129, 0.25);
-      transition: transform 0.15s ease, filter 0.15s ease;
-    }
-    .sim-btn:hover { transform: translateY(-1px); filter: brightness(1.08); }
-    .sim-status {
-      font-family: "SFMono-Regular", Consolas, Menlo, monospace;
-      font-size: 12.5px;
-      color: var(--primary);
-    }
-    .seq-step { opacity: 0.45; transition: opacity 0.35s ease, filter 0.35s ease; }
-    .seq-step.lit { opacity: 1; filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.55)); }
-
-    /* Tables */
     table {
-      width: 100%;
-      border-collapse: collapse;
-      margin: 14px 0 22px;
-      font-size: 13.8px;
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      overflow: hidden;
-      background: var(--surface-2);
+      width: 100%; border-collapse: collapse; margin: 14px 0 22px; font-size: 13.8px;
+      border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--surface-2);
     }
-    th, td {
-      padding: 11px 14px;
-      text-align: left;
-      border-bottom: 1px solid var(--border);
-      vertical-align: top;
-    }
-    th {
-      background: color-mix(in srgb, var(--surface-solid) 88%, var(--primary) 12%);
-      color: var(--ink);
-      font-weight: 600;
-    }
-    tbody tr { transition: background-color 0.15s ease; }
+    th, td { padding: 11px 14px; text-align: left; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { background: color-mix(in srgb, var(--surface-solid) 88%, var(--primary) 12%); color: var(--ink); font-weight: 600; }
     tbody tr:hover { background: var(--primary-soft); }
     tr:last-child td { border-bottom: none; }
     td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
-    .tag {
-      display: inline-block;
-      padding: 2px 9px;
-      border-radius: 999px;
-      font-size: 11.8px;
-      font-weight: 600;
-      white-space: nowrap;
-    }
+    .tag { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11.8px; font-weight: 600; white-space: nowrap; }
     .tag-ok { background: var(--green-soft); color: var(--green); border: 1px solid var(--green-border); }
     .tag-warn { background: var(--amber-soft); color: var(--amber); border: 1px solid var(--amber-border); }
     .tag-err { background: var(--red-soft); color: var(--red); border: 1px solid var(--red-border); }
     .tag-info { background: var(--primary-soft); color: var(--primary); border: 1px solid color-mix(in srgb, var(--primary) 40%, transparent); }
 
     code {
-      background: color-mix(in srgb, var(--primary) 14%, transparent);
-      color: var(--primary);
-      padding: 1px 6px;
-      border-radius: 5px;
-      font-family: "SFMono-Regular", Consolas, Menlo, monospace;
-      font-size: 12.8px;
+      background: color-mix(in srgb, var(--primary) 14%, transparent); color: var(--primary);
+      padding: 1px 6px; border-radius: 5px; font-family: "SFMono-Regular", Consolas, Menlo, monospace; font-size: 12.8px;
     }
 
-    .callout {
-      border-radius: 10px;
-      padding: 16px 20px;
-      margin: 16px 0;
-      font-size: 14px;
-    }
+    .callout { border-radius: 10px; padding: 16px 20px; margin: 16px 0; font-size: 14px; }
     .callout-red { background: var(--red-soft); border: 1px solid var(--red-border); border-left: 4px solid var(--red); }
     .callout-amber { background: var(--amber-soft); border: 1px solid var(--amber-border); border-left: 4px solid var(--amber); }
     .callout-blue { background: var(--primary-soft); border: 1px solid color-mix(in srgb, var(--primary) 35%, transparent); border-left: 4px solid var(--primary); }
     .callout strong { color: var(--ink); }
 
-    .doc-footer {
-      margin-top: 44px;
-      padding-top: 18px;
-      border-top: 1px solid var(--border);
-      font-size: 12.5px;
-      color: var(--muted);
-      display: flex;
-      justify-content: space-between;
-      flex-wrap: wrap;
-      gap: 8px;
+    /* Collapsible Appendix */
+    details.appendix {
+      margin-top: 38px;
+      border: 1px dashed var(--border-strong);
+      border-radius: 12px;
+      padding: 14px 20px;
+      background: var(--surface-2);
     }
+    details.appendix summary {
+      cursor: pointer;
+      font-weight: 700;
+      color: var(--muted);
+      font-size: 14.5px;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    details.appendix summary::after { content: "展开查看 ▾"; font-size: 12.5px; color: var(--primary); }
+    details.appendix[open] summary::after { content: "收起 ▴"; }
+    details.appendix[open] summary { margin-bottom: 14px; color: var(--ink); }
 
+    .doc-footer {
+      margin-top: 44px; padding-top: 18px; border-top: 1px solid var(--border);
+      font-size: 12.5px; color: var(--muted); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px;
+    }
     @media print {
-      .top-nav, .progress-bar, .copy-btn, .sim-bar { display: none !important; }
+      .top-nav, .progress-bar, .copy-btn { display: none !important; }
       body { background: #fff !important; color: #111 !important; }
       .paper { box-shadow: none !important; border: none !important; margin: 0 !important; padding: 0 !important; }
       .reveal { opacity: 1 !important; transform: none !important; }
@@ -510,18 +273,16 @@
     <div class="nav-inner">
       <div class="nav-brand">
         <span class="live-dot"></span>
-        <span>OKX 月度榜单验证报告</span>
+        <span>OKX 全账户月度榜单验证报告</span>
       </div>
       <div class="nav-links" id="navLinks">
-        <a href="#s1">摘要</a>
-        <a href="#s2">方案对比</a>
-        <a href="#s3">公式与架构</a>
-        <a href="#s4">无快照边界</a>
-        <a href="#s5">全平闭环</a>
-        <a href="#s6">接口字段</a>
-        <a href="#s7">实测数据</a>
-        <a href="#s8">10万级落库</a>
-        <a href="#s9">深坑清单</a>
+        <a href="#s1">执行摘要</a>
+        <a href="#s2">核心公式</a>
+        <a href="#s3">系统架构</a>
+        <a href="#s4">无快照还原</a>
+        <a href="#s5">10万级落库</a>
+        <a href="#s6">实测证据</a>
+        <a href="#s7">线上深坑</a>
       </div>
       <button class="theme-btn" id="themeBtn" onclick="toggleTheme()">☀ 浅色模式</button>
     </div>
@@ -531,13 +292,13 @@
     <header class="doc-header">
       <div class="hero-pill">
         <span class="live-dot"></span>
-        OKX v5 Demo 实盘验证通过 · WS vs REST 对账误差 $0.0000
+        OKX v5 Demo 实盘验证通过 · 统一覆盖现货 + 全部合约品类
       </div>
-      <h1>OKX OpenAPI 月度榜单 PnL 计算方案<br/>技术可行性验证报告</h1>
+      <h1>OKX OpenAPI 月度榜单（现货 + 合约）<br/>PnL 计算方案可行性验证报告</h1>
       <div class="doc-meta">
-        <span><strong>报告日期：</strong>2026-11-24</span>
-        <span><strong>覆盖品类：</strong>USDT 永续 · 币本位永续 · 币本位交割 · USDC 结算</span>
-        <span><strong>目标量级：</strong>100,000+ 活跃用户</span>
+        <span><strong>报告日期：</strong>2026-11-25</span>
+        <span><strong>主方案：</strong>优化版 <code>totalEq</code> 权益法 + 日聚合划转 + WS <code>account</code></span>
+        <span><strong>覆盖范围：</strong>现货 · 杠杆 · USDT/USDC/币本位永续 · 交割 · 期权</span>
       </div>
     </header>
 
@@ -545,146 +306,73 @@
     <section id="s1" class="reveal">
       <h2>一、执行摘要（Executive Summary）</h2>
       <div class="summary-box">
-        <div class="title">核心结论：是否计入「现货」决定最终架构选型（两套方案均已实盘验证，10 万用户量级均为 O(1)）</div>
-        <p style="margin-bottom: 6px;">1. <strong>纳入现货 + 合约（全账户统一推荐 — 优化版 <code>totalEq</code> 权益法）：</strong>实测证实 OKX <code>positions</code> / <code>positions-history</code> / WS <code>positions</code> 对现货返回 <strong>0 条记录</strong>；计入现货必须使用 <code>totalEq(Now) - NetTransfers(type=1, subType∈{11,12}) - totalEq(T0)</code> + WS <code>account</code>，实测现货跨期还原 <code>SOL/USDT</code> 数量误差 <strong><code>0.000000</code></strong>、总权益误差仅 <strong><code>0.0043%</code></strong>，且无需 <code>pos=="0"</code> 延迟队列。</p>
-        <p style="margin-bottom: 6px;">2. <strong>仅算纯合约（不含现货 — 仓位增量法）：</strong>冷启动调 2 次 REST（<code>positions-history</code> + <code>positions</code>），随后常驻 WS <code>positions</code> 增量更新；4 大合约品类实测对账误差均为 <strong><code>$0.0000</code></strong>。</p>
-        <p style="margin-bottom: 0;">3. <strong>10 万用户 0 点零偏移快照 + 精准 <code>ccy list</code> 发现：</strong>0 点冻结 1 份共享 <code>idxPx(T0) + markPx(T0)</code> 表本地毫秒级重算；月中无快照新用户通过 <code>balance ∪ SPOT fills ∪ type=1 bills</code> 取并集拿全 <code>ccy list</code>（通常仅 2～8 个币种），每币种 1 次 <code>end=T0&amp;limit=1</code> 读 <code>bal</code> 即可还原。</p>
+        <div class="title">最终推荐主方案：优化版 <code>totalEq</code> 权益法 + 按日聚合 <code>type=1</code> 划转 + 私有 WS <code>account</code></div>
+        <p style="margin-bottom: 6px;">1. <strong>为什么必须采用 <code>totalEq</code> 主方案：</strong>实盘测试确认，OKX 的 <code>positions</code> / <code>positions-history</code> 与 WS <code>positions</code> 对现货交易均返回 <strong>0 条记录</strong>；只要榜单需要<strong>纳入现货</strong>，<code>totalEq(Now) - NetTransfers - totalEq(T0)</code> 是唯一能统一覆盖「现货 + 全部合约」且状态机最简洁的方案。</p>
+        <p style="margin-bottom: 6px;">2. <strong>彻底解决「账单数据量大」问题：</strong>日常划转只查 <code>type=1</code>（<code>subType ∈ {"11","12"}</code>）并按天聚合为 <code>daily_net_transfer_usd</code>（通常不足 1 页/月）；月中新用户无快照还原时，通过 <code>balance ∪ SPOT fills ∪ type=1 bills</code> 精准拿全 <code>ccy list</code>（通常 2～8 个币种），每币种调 <strong>1 次</strong> <code>end=T0&amp;limit=1</code> 直接读 <code>bal</code>，<strong>无需全量分页账单</strong>。</p>
+        <p style="margin-bottom: 0;">3. <strong>实测精度与 10 万级性能：</strong>现货跨期持仓 + 清仓 + 划转实测 <code>SOL/USDT</code> 还原误差 <strong><code>0.000000</code></strong>、<code>totalEq(T0)</code> 精度 <strong><code>99.9957%</code></strong>（误差仅 <code>0.0043%</code>）；10 万用户量级单事件计算 <strong><code>O(1)</code></strong>，且无需维护复杂的 <code>pos=="0"</code> 延迟队列。</p>
       </div>
 
       <div class="kpi-grid">
         <div class="kpi">
-          <div class="k-label">WS 增量 vs REST 误差</div>
-          <div class="k-val ok" data-count="$0.0000">$0.0000</div>
-          <div class="k-sub">USDT / 币本位 / 交割 / USDC 全通过</div>
+          <div class="k-label">现货/USDT 数量还原误差</div>
+          <div class="k-val ok">0.000000</div>
+          <div class="k-sub">含已全卖归零的跨期 SOL 现货</div>
         </div>
         <div class="kpi">
-          <div class="k-label">日常 REST 轮询次数</div>
-          <div class="k-val ok" data-count="0 次/秒">0 次/秒</div>
-          <div class="k-sub">仅冷启动 + 全平事件单条查库</div>
+          <div class="k-label">totalEq(T0) 无快照精度</div>
+          <div class="k-val ok">99.9957%</div>
+          <div class="k-sub">实测误差仅 0.0043% ($3.10 / $72.7k)</div>
+        </div>
+        <div class="kpi">
+          <div class="k-label">WS 实时状态机</div>
+          <div class="k-val blue">最简 O(1)</div>
+          <div class="k-sub">WS account 直接推 totalEq，无延迟队列</div>
         </div>
         <div class="kpi">
           <div class="k-label">0 点快照支持规模</div>
-          <div class="k-val blue" data-count="100,000+">100,000+</div>
-          <div class="k-sub">共享标记价表 · &lt;1s 批量落库</div>
-        </div>
-        <div class="kpi">
-          <div class="k-label">单事件内存计算复杂度</div>
-          <div class="k-val blue">O(1)</div>
-          <div class="k-sub">Redis ZSET 毫秒级实时排名</div>
+          <div class="k-val blue">100,000+</div>
+          <div class="k-sub">1 份共享 0 点价格表，0 REST 尖峰</div>
         </div>
       </div>
     </section>
 
     <!-- SECTION 2 -->
     <section id="s2" class="reveal">
-      <h2>二、两种轻量化方案对比（10 万用户量级）</h2>
-      <table>
-        <thead>
-          <tr>
-            <th style="width:19%;">对比维度</th>
-            <th style="width:40.5%;">方案 A：仓位增量法（<code>positions + WS</code>）</th>
-            <th style="width:40.5%;">方案 B：优化总权益法（<code>totalEq + 日聚合 type=1</code>）</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><strong>榜单口径</strong></td>
-            <td><strong>纯合约交易 PnL</strong>（已含手续费、资金费、强平费）</td>
-            <td><strong>交易账户总权益 PnL</strong>（现货 + 合约一并计入）</td>
-          </tr>
-          <tr>
-            <td><strong>资金划转 / 现货波动</strong></td>
-            <td><span class="tag tag-ok">天然免疫</span>（无需查划转，无现货币价污染）</td>
-            <td>需按 <code>type=1</code> 剔除划转；现货 BTC/ETH 涨跌会计入 PnL</td>
-          </tr>
-          <tr>
-            <td><strong>10 万用户计算性能</strong></td>
-            <td><strong><code>O(1)</code></strong>（单仓位增量差值更新，活跃仓位 ~10–30 万行，&lt;150MB）</td>
-            <td><strong><code>O(1)</code></strong>（<code>totalEq - 30天日聚合划转 - t0_eq</code>，&lt;100MB）</td>
-          </tr>
-          <tr>
-            <td><strong>WS 状态机复杂度</strong></td>
-            <td><span class="tag tag-info">需全平闭环</span>（<code>pending_close</code> + <code>(posId, cTime)</code> 延迟队列）</td>
-            <td><span class="tag tag-ok">更简单</span>（WS <code>account</code> 直接推 <code>totalEq</code>，无全平队列）</td>
-          </tr>
-          <tr>
-            <td><strong>月中无快照补数速度</strong></td>
-            <td>无跨月持仓仅 2 次 REST（~200ms）；有跨月按 <code>instId</code> 局部补数</td>
-            <td><code>bills-archive?end=T0&amp;limit=1</code> 单次拿 <code>Cash@T0</code> + <code>type=1</code> 划转 + 跨月 <code>UPL@T0</code></td>
-          </tr>
-        </tbody>
-      </table>
+      <h2>二、核心数学公式（精确到 OKX 接口与字段）</h2>
+      <div class="formula-wrap">
+        <button class="copy-btn" onclick="copyFormula(this)">复制公式</button>
+        <div class="formula-box">【1. 核心月度 PnL 公式（统一覆盖现货 + 杠杆 + 所有合约 + 期权）】
+  MonthlyPnL(T0 → Now) = totalEq(Now) - NetTransfers(T0, Now] - totalEq(T0)
+  ※ totalEq(Now)：由私有 WS `account` 频道实时推送（O(1) 内存更新，无需全平延迟队列）
+
+【2. 净划转 NetTransfers（查 bills-archive?type=1，代码过滤 subType ∈ {"11","12"}，按天聚合）】
+  • subType == "11"：转入交易账户（balChg &gt; 0）；subType == "12"：转出交易账户（balChg &lt; 0）
+  • DailyNetTransfer(day) = Σ [ bill.balChg × IndexPx(bill.ccy-USD, bill.ts) ]
+  • NetTransfers(T0, Now] = Σ DailyNetTransfer(day)     （全月最多 30 条日聚合记录相加）
+
+【3. 缺失 totalEq(T0) 快照时的还原公式（仅月中新用户冷启动执行 1 次）】
+  totalEq(T0) = Σ [ CashBal_c(T0) × IndexPx(c-USD, T0) ] + Σ UPL_usd(跨月合约 p, T0)
+
+  ① 精准拿全用户 ccy_list（无需遍历 300+ 币种，完全跳过高频合约账单）：
+       CCY(T0) = { GET /account/balance 当前非零币种 }
+               ∪ { fills-history?instType=SPOT&amp;begin=T0&amp;end=Now 现货交易涉及币种（抓出已卖空归零币种） }
+               ∪ { bills-archive?type=1&amp;begin=T0&amp;end=Now 划转涉及币种（抓出已转空归零币种） }
+
+  ② 每币种 1 次请求拿 CashBal_c(T0)：
+       GET /api/v5/account/bills-archive?ccy=c&amp;end=T0&amp;limit=1 → 直接读 bal 字段（免分页！）
+       ※ 稳定币估值也取 USDT-USD / USDC-USD 1m 指数 K 线（消除 ~0.1% 折溢价误差）
+
+  ③ 跨月未平合约（cTime &lt; T0）的 UPL_usd(p, T0)（必须经 fills-history 还原 Q(T0) 与 avgPx(T0)）：
+       • 查 GET /api/v5/trade/fills-history?instType=...&amp;instId=&lt;跨月合约&gt;&amp;begin=T0&amp;end=Now
+       • Q(T0) = Q(Now) - Σ fill_signed_sz(T0, Now]      （buy=+fillSz, sell=-fillSz；全平则 Q(Now)=0）
+       • 正向合约 (linear)： UPL_usd(p, T0) = Q(T0) × ctVal × (markPx(T0) - avgPx(T0)) × IndexPx(ccy-USD, T0)
+       • 反向/币本位 (inverse)：UPL_usd(p, T0) = Q(T0) × ctVal × (1/avgPx(T0) - 1/markPx(T0)) × IndexPx(ccy-USD, T0)</div>
+      </div>
     </section>
 
     <!-- SECTION 3 -->
     <section id="s3" class="reveal">
-      <h2>三、完整计算公式与动态架构流程图</h2>
-      <p>点击下方标签页切换查看两套方案的<strong>完整数学公式（精确到 OKX 字段名与正反向合约差异）</strong>：</p>
-
-      <div class="tab-bar">
-        <button class="tab-btn active" onclick="switchTab('tab-pos', this)">方案 A：仓位增量法（纯合约推荐）</button>
-        <button class="tab-btn" onclick="switchTab('tab-eq', this)">方案 B：账户总权益法（现货+合约）</button>
-      </div>
-
-      <div id="tab-pos" class="tab-panel active">
-        <div class="formula-wrap">
-          <button class="copy-btn" onclick="copyFormula(this)">复制公式</button>
-          <div class="formula-box">【步骤 1：结算币种折算 USD 汇率 P_usd(ccy, t)】
-  • 稳定币 (ccy ∈ {USD, USDT, USDC})：P_usd = 1.0
-  • 币本位 (ccy ∈ {BTC, ETH, ...})：
-      - 持仓实时计算：P_usd = ws.idxPx（兜底 ws.markPx，0 REST）
-      - 平仓落袋计算：P_usd = IndexCandle(ccy-USD, uTime)
-
-【步骤 2：有符号持仓张数 Q(p) 与 T0 时刻未实现盈亏 UPL_usd(p, T0)】
-  • Q(p) 规则：posSide=="net" → pos；posSide=="long" → +|pos|；posSide=="short" → -|pos|
-  • 缺失 T0 快照的跨月仓位（cTime &lt; T0）必经 fills-history 还原（因无法预知 T0 后是否有部分成交/加减仓）：
-      - 查 GET /api/v5/trade/fills-history?instType=...&amp;instId=&lt;跨月合约&gt;&amp;begin=T0&amp;end=Now
-      - Q(T0) = Q(Now) - Σ fill_signed_sz(T0, Now]   （其中 Q(Now)=0 表示已全平；buy 为 +fillSz，sell 为 -fillSz）
-      - avgPx(T0)：若 T0 后仅平仓则等于最新 avgPx；若 T0 后有加仓则按加权均价反推（或从 cTime 正向回放 fills）
-  • 正向合约 (ctType == "linear"，如 BTC-USDT-SWAP / BTC-USD_UM-261225)：
-      UPL_usd(p, T0) = Q(T0) × ctVal × (markPx(T0) - avgPx(T0)) × P_usd(ccy, T0)
-  • 反向/币本位合约 (ctType == "inverse"，如 BTC-USD-SWAP / BTC-USD-261225)：
-      UPL_usd(p, T0) = Q(T0) × ctVal × (1 / avgPx(T0) - 1 / markPx(T0)) × P_usd(ccy, T0)
-
-【步骤 3：月初 0 点基线快照（仅对 T0 时刻未平仓位 cTime &lt; T0）】
-  SnapshotPnL(p, T0) = realizedPnl(p, T0) × P_usd(ccy, T0) + UPL_usd(p, T0)
-  ※ 注意：OKX 的 realizedPnl 已包含 pnl + fee + fundingFee + liqPenalty + settledPnl，切勿重复加减手续费！
-
-【步骤 4：单仓位本月贡献 MonthPnL(p)】
-  • 本月已平仓 (positions-history，按 (posId, cTime) 精确匹配)：
-      MonthPnL_closed(p) = realizedPnl_final × P_usd(ccy, uTime) - (cTime &lt; T0 ? SnapshotPnL(p, T0) : 0)
-  • 当前未平仓 (WS positions 实时推送)：
-      MonthPnL_open(p)   = (realizedPnl_now + upl_now) × P_usd(ccy, Now) - (cTime &lt; T0 ? SnapshotPnL(p, T0) : 0)
-
-【步骤 5：用户月度总 PnL】
-  MonthlyPnL_user = Σ MonthPnL_closed(p) + Σ MonthPnL_open(p)
-  （等价用户级简写：Σ LifetimePnL_closed + Σ LifetimePnL_open - UserSnapshotPnL_at_T0）</div>
-        </div>
-      </div>
-
-      <div id="tab-eq" class="tab-panel">
-        <div class="formula-wrap">
-          <button class="copy-btn" onclick="copyFormula(this)">复制公式</button>
-          <div class="formula-box">【核心公式（统一覆盖：现货 + 杠杆 + USDT/USDC/币本位永续 + 交割 + 期权）】
-  MonthlyPnL_equity = totalEq(Now) - NetTransfers(T0, Now] - totalEq(T0)
-  ※ totalEq(Now) 直接由私有 WS `account` 频道实时推送（无需 pos=="0" 延迟队列）
-
-【净划转（查 bills-archive?type=1，代码过滤 subType ∈ {"11"(转入), "12"(转出)}，按天聚合）】
-  DailyNetTransfer(day) = Σ [ bill.balChg × P_usd(bill.ccy, bill.ts) ]   (subType="11" 为正，"12" 为负)
-  NetTransfers(T0, Now] = Σ DailyNetTransfer(day)                        (最多 30 条日聚合记录相加)
-
-【缺失 totalEq(T0) 快照时的完整还原公式】
-  1. 精准获取 ccy_list（无需遍历 300+ 币种，跳过高频合约账单）：
-       CCY(T0) = {GET /account/balance 当前非零币种}
-               ∪ {fills-history?instType=SPOT&amp;begin=T0&amp;end=Now 现货交易涉及币种（抓出已卖空归零币种）}
-               ∪ {bills-archive?type=1&amp;begin=T0&amp;end=Now 划转涉及币种（抓出已转空归零币种）}
-  2. 每币种 1 次请求拿 CashBal_c(T0)：
-       GET /api/v5/account/bills-archive?ccy=c&amp;end=T0&amp;limit=1 → 直接读 bal 字段（免分页！）
-  3. 估值与跨月合约 UPL(T0) 合并（稳定币用 USDT-USD / USDC-USD 指数 K 线消除折溢价）：
-       totalEq(T0) = Σ [ CashBal_c(T0) × IndexPx(c-USD, T0) ] + Σ UPL_usd(跨月合约 p, T0)</div>
-        </div>
-      </div>
-
+      <h2>三、系统动态架构流程图（<code>totalEq</code> + WS <code>account</code> 主方案）</h2>
       <div class="diagram-card">
         <svg viewBox="0 0 880 390" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system, PingFang SC, Microsoft YaHei, sans-serif">
           <defs>
@@ -694,510 +382,259 @@
             <marker id="arr-green" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
               <path d="M 0 1 L 10 5 L 0 9 z" fill="#34d399" />
             </marker>
-            <marker id="arr-red" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-              <path d="M 0 1 L 10 5 L 0 9 z" fill="#f87171" />
+            <marker id="arr-amber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 1 L 10 5 L 0 9 z" fill="#fbbf24" />
             </marker>
-          </defs>
-
-          <!-- Lanes -->
-          <rect x="10" y="12" width="255" height="366" rx="12" fill="rgba(56,189,248,0.04)" stroke="rgba(148,163,184,0.28)" stroke-dasharray="5,4"/>
-          <text x="137" y="34" text-anchor="middle" font-size="13" font-weight="700" fill="var(--svg-text)">阶段一：0 点预热 &amp; 冷启动</text>
-
-          <rect x="285" y="12" width="325" height="366" rx="12" fill="rgba(56,189,248,0.06)" stroke="rgba(56,189,248,0.38)" stroke-dasharray="5,4"/>
-          <text x="447" y="34" text-anchor="middle" font-size="13" font-weight="700" fill="#38bdf8">阶段二：WS 实时增量主循环（0 轮询）</text>
-
-          <rect x="630" y="12" width="240" height="366" rx="12" fill="rgba(52,211,153,0.06)" stroke="rgba(52,211,153,0.38)" stroke-dasharray="5,4"/>
-          <text x="750" y="34" text-anchor="middle" font-size="13" font-weight="700" fill="#34d399">阶段三：持久化 &amp; 实时榜单</text>
-
-          <!-- Stage 1 -->
-          <rect x="28" y="54" width="219" height="62" rx="9" fill="var(--svg-box)" stroke="#38bdf8" stroke-width="1.5"/>
-          <text x="137" y="78" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--svg-text)">00:00:00 零偏移快照</text>
-          <text x="137" y="98" text-anchor="middle" font-size="11" fill="var(--svg-sub)">1 份共享 markPx(T0) 本地重算</text>
-
-          <rect x="28" y="146" width="219" height="68" rx="9" fill="var(--svg-box)" stroke="rgba(148,163,184,0.45)" stroke-width="1.5"/>
-          <text x="137" y="168" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--svg-text)">冷启动 / 断线重连</text>
-          <text x="137" y="186" text-anchor="middle" font-size="11" fill="var(--svg-sub)">1. positions-history → closed</text>
-          <text x="137" y="202" text-anchor="middle" font-size="11" fill="var(--svg-sub)">2. positions → open_map</text>
-
-          <rect x="28" y="248" width="219" height="108" rx="9" fill="rgba(251,191,36,0.08)" stroke="#fbbf24" stroke-width="1.5"/>
-          <text x="137" y="272" text-anchor="middle" font-size="12.5" font-weight="700" fill="#fbbf24">月中新用户兜底（无 T0）</text>
-          <text x="137" y="292" text-anchor="middle" font-size="11" fill="var(--svg-sub)">• 无跨月老仓：2 次 REST (200ms)</text>
-          <text x="137" y="311" text-anchor="middle" font-size="11" fill="var(--svg-sub)">• 有跨月老仓：按 instId 异步</text>
-          <text x="137" y="328" text-anchor="middle" font-size="11" fill="var(--svg-sub)">  补齐 1 次 T0 后永久切回 WS</text>
-
-          <!-- Stage 2 -->
-          <rect x="308" y="54" width="278" height="62" rx="9" fill="var(--svg-box)" stroke="#38bdf8" stroke-width="1.5"/>
-          <text x="447" y="78" text-anchor="middle" font-size="12.5" font-weight="700" fill="#38bdf8">私有 WS (443 端口)</text>
-          <text x="447" y="98" text-anchor="middle" font-size="11" fill="var(--svg-sub)">channel: "positions", instType: "ANY"</text>
-
-          <polygon points="447,142 537,182 447,222 357,182" fill="var(--svg-box)" stroke="#38bdf8" stroke-width="1.5"/>
-          <text x="447" y="178" text-anchor="middle" font-size="12" font-weight="700" fill="var(--svg-text)">收到 WS 推送</text>
-          <text x="447" y="195" text-anchor="middle" font-size="11" fill="var(--svg-sub)">pos == "0" ?</text>
-
-          <rect x="300" y="264" width="138" height="92" rx="9" fill="var(--svg-box)" stroke="#34d399" stroke-width="1.5"/>
-          <text x="369" y="286" text-anchor="middle" font-size="12" font-weight="700" fill="#34d399">持仓中 / 加减仓</text>
-          <text x="369" y="305" text-anchor="middle" font-size="11" fill="var(--svg-text)">纯内存 O(1) 更新</text>
-          <text x="369" y="323" text-anchor="middle" font-size="10.5" fill="var(--svg-sub)">币本位取 idxPx</text>
-          <text x="369" y="340" text-anchor="middle" font-size="10.5" fill="var(--svg-sub)">实时折算 USD</text>
-
-          <rect x="454" y="264" width="142" height="92" rx="9" fill="rgba(248,113,113,0.08)" stroke="#f87171" stroke-width="1.5"/>
-          <text x="525" y="286" text-anchor="middle" font-size="12" font-weight="700" fill="#f87171">全平事件闭环</text>
-          <text x="525" y="305" text-anchor="middle" font-size="10.5" fill="var(--svg-text)">移入 pending_close</text>
-          <text x="525" y="323" text-anchor="middle" font-size="10.5" fill="var(--svg-sub)">延迟队列按 (posId,</text>
-          <text x="525" y="340" text-anchor="middle" font-size="10.5" fill="var(--svg-sub)">cTime) 查 history</text>
-
-          <!-- Stage 3 -->
-          <rect x="648" y="88" width="204" height="68" rx="9" fill="var(--svg-box)" stroke="#34d399" stroke-width="1.5"/>
-          <text x="750" y="114" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--svg-text)">user_open_positions</text>
-          <text x="750" y="134" text-anchor="middle" font-size="11" fill="var(--svg-sub)">Redis Hash + DB 异步刷盘</text>
-
-          <rect x="648" y="184" width="204" height="68" rx="9" fill="var(--svg-box)" stroke="#34d399" stroke-width="1.5"/>
-          <text x="750" y="210" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--svg-text)">user_closed_positions</text>
-          <text x="750" y="230" text-anchor="middle" font-size="11" fill="var(--svg-sub)">DB 唯一键幂等落袋</text>
-
-          <rect x="648" y="288" width="204" height="68" rx="10" fill="url(#grad-green)" />
-          <defs>
             <linearGradient id="grad-green" x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stop-color="#059669"/>
               <stop offset="100%" stop-color="#0284c7"/>
             </linearGradient>
           </defs>
-          <text x="750" y="316" text-anchor="middle" font-size="13.5" font-weight="700" fill="#ffffff">Redis ZSET 实时榜单</text>
-          <text x="750" y="336" text-anchor="middle" font-size="11.5" fill="#e0f2fe">closed + Σ open · O(log N)</text>
 
-          <!-- Animated Flow Arrows -->
-          <line x1="137" y1="116" x2="137" y2="144" stroke="#38bdf8" stroke-width="2" class="flow-line-slow" marker-end="url(#arr-blue)"/>
-          <line x1="247" y1="180" x2="306" y2="85" stroke="#38bdf8" stroke-width="2" class="flow-line" marker-end="url(#arr-blue)"/>
-          <line x1="447" y1="116" x2="447" y2="140" stroke="#38bdf8" stroke-width="2" class="flow-line" marker-end="url(#arr-blue)"/>
-          <path d="M 385 198 L 369 198 L 369 262" fill="none" stroke="#34d399" stroke-width="2" class="flow-line" marker-end="url(#arr-green)"/>
-          <text x="350" y="234" font-size="11" font-weight="700" fill="#34d399">否</text>
-          <path d="M 509 198 L 525 198 L 525 262" fill="none" stroke="#f87171" stroke-width="2" class="flow-line" marker-end="url(#arr-red)"/>
-          <text x="533" y="234" font-size="11" font-weight="700" fill="#f87171">是</text>
-          <path d="M 369 356 L 369 372 L 620 372 L 620 122 L 646 122" fill="none" stroke="#34d399" stroke-width="2" class="flow-line" marker-end="url(#arr-green)"/>
-          <path d="M 596 310 L 636 310 L 636 218 L 646 218" fill="none" stroke="#f87171" stroke-width="2" class="flow-line" marker-end="url(#arr-red)"/>
-          <line x1="750" y1="156" x2="750" y2="182" stroke="#34d399" stroke-width="2" class="flow-line-slow"/>
-          <line x1="750" y1="252" x2="750" y2="286" stroke="#34d399" stroke-width="2" class="flow-line" marker-end="url(#arr-green)"/>
+          <!-- Lanes -->
+          <rect x="10" y="12" width="260" height="366" rx="12" fill="rgba(56,189,248,0.04)" stroke="rgba(148,163,184,0.28)" stroke-dasharray="5,4"/>
+          <text x="140" y="34" text-anchor="middle" font-size="13" font-weight="700" fill="var(--svg-text)">阶段一：T0 基线（预热 / 补齐）</text>
+
+          <rect x="290" y="12" width="315" height="366" rx="12" fill="rgba(56,189,248,0.06)" stroke="rgba(56,189,248,0.38)" stroke-dasharray="5,4"/>
+          <text x="447" y="34" text-anchor="middle" font-size="13" font-weight="700" fill="#38bdf8">阶段二：实时 WS 增量（443 端口）</text>
+
+          <rect x="625" y="12" width="245" height="366" rx="12" fill="rgba(52,211,153,0.06)" stroke="rgba(52,211,153,0.38)" stroke-dasharray="5,4"/>
+          <text x="747" y="34" text-anchor="middle" font-size="13" font-weight="700" fill="#34d399">阶段三：持久化 &amp; 10 万级榜单</text>
+
+          <!-- Stage 1 -->
+          <rect x="28" y="54" width="224" height="80" rx="9" fill="var(--svg-box)" stroke="#38bdf8" stroke-width="1.5"/>
+          <text x="140" y="76" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--svg-text)">场景一：10 万存量预热</text>
+          <text x="140" y="96" text-anchor="middle" font-size="11" fill="var(--svg-sub)">0 点前预热 cashBal + positions</text>
+          <text x="140" y="114" text-anchor="middle" font-size="11" fill="#38bdf8">00:00 共享价格表重算 totalEq(T0)</text>
+
+          <rect x="28" y="164" width="224" height="114" rx="9" fill="rgba(251,191,36,0.08)" stroke="#fbbf24" stroke-width="1.5"/>
+          <text x="140" y="186" text-anchor="middle" font-size="12.5" font-weight="700" fill="#fbbf24">场景二：月中新用户补齐</text>
+          <text x="140" y="206" text-anchor="middle" font-size="11" fill="var(--svg-sub)">1. balance ∪ SPOT fills ∪ type=1</text>
+          <text x="140" y="224" text-anchor="middle" font-size="11" fill="var(--svg-sub)">2. 每币种 1 次 end=T0 读 bal</text>
+          <text x="140" y="242" text-anchor="middle" font-size="11" fill="var(--svg-sub)">3. 跨月合约 fills 算 UPL(T0)</text>
+          <text x="140" y="260" text-anchor="middle" font-size="11" fill="#fbbf24">落库后永久切回 WS 实时流</text>
+
+          <rect x="28" y="302" width="224" height="54" rx="9" fill="var(--svg-box)" stroke="#34d399" stroke-width="1.5"/>
+          <text x="140" y="324" text-anchor="middle" font-size="12" font-weight="700" fill="#34d399">monthly_equity_snapshots</text>
+          <text x="140" y="342" text-anchor="middle" font-size="11" fill="var(--svg-sub)">每用户仅 1 条 totalEq(T0) 基线</text>
+
+          <!-- Stage 2 -->
+          <rect x="312" y="64" width="270" height="86" rx="9" fill="var(--svg-box)" stroke="#34d399" stroke-width="1.5"/>
+          <text x="447" y="90" text-anchor="middle" font-size="13" font-weight="700" fill="#34d399">WS `account` 频道</text>
+          <text x="447" y="110" text-anchor="middle" font-size="11" fill="var(--svg-text)">实时推送最新 totalEq(Now)</text>
+          <text x="447" y="130" text-anchor="middle" font-size="10.5" fill="var(--svg-sub)">自动涵盖现货 + 合约 + 资金费 + 手续费</text>
+
+          <rect x="312" y="190" width="270" height="96" rx="9" fill="var(--svg-box)" stroke="#38bdf8" stroke-width="1.5"/>
+          <text x="447" y="216" text-anchor="middle" font-size="13" font-weight="700" fill="#38bdf8">划转增量追踪</text>
+          <text x="447" y="236" text-anchor="middle" font-size="11" fill="var(--svg-text)">WS balance_and_position (transferred)</text>
+          <text x="447" y="254" text-anchor="middle" font-size="10.5" fill="var(--svg-sub)">+ 定时/重连对账 bills-archive?type=1</text>
+          <text x="447" y="272" text-anchor="middle" font-size="10.5" fill="#38bdf8">过滤 subType ∈ {"11", "12"}</text>
+
+          <rect x="312" y="310" width="270" height="46" rx="9" fill="rgba(52,211,153,0.08)" stroke="rgba(52,211,153,0.4)"/>
+          <text x="447" y="338" text-anchor="middle" font-size="11.5" font-weight="700" fill="#34d399">✓ 无需维护 pos=="0" 全平延迟队列</text>
+
+          <!-- Stage 3 -->
+          <rect x="645" y="74" width="206" height="68" rx="9" fill="var(--svg-box)" stroke="#34d399" stroke-width="1.5"/>
+          <text x="748" y="100" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--svg-text)">user_live_equity (Redis)</text>
+          <text x="748" y="120" text-anchor="middle" font-size="11" fill="var(--svg-sub)">最新 totalEq(Now)（1 条/用户）</text>
+
+          <rect x="645" y="176" width="206" height="68" rx="9" fill="var(--svg-box)" stroke="#38bdf8" stroke-width="1.5"/>
+          <text x="748" y="202" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--svg-text)">daily_net_transfers (DB)</text>
+          <text x="748" y="222" text-anchor="middle" font-size="11" fill="var(--svg-sub)">按天聚合（最多 30 行/月）</text>
+
+          <rect x="645" y="280" width="206" height="72" rx="10" fill="url(#grad-green)"/>
+          <text x="748" y="308" text-anchor="middle" font-size="13.5" font-weight="700" fill="#ffffff">Redis ZSET 实时榜单</text>
+          <text x="748" y="328" text-anchor="middle" font-size="11" fill="#e0f2fe">totalEq - Transfers - T0</text>
+          <text x="748" y="344" text-anchor="middle" font-size="10.5" fill="#bae6fd">O(1) 计算 · O(log N) 排序</text>
+
+          <!-- Animated Arrows -->
+          <line x1="140" y1="134" x2="140" y2="162" stroke="#38bdf8" stroke-width="1.8" class="flow-line-slow"/>
+          <line x1="140" y1="278" x2="140" y2="300" stroke="#fbbf24" stroke-width="1.8" class="flow-line" marker-end="url(#arr-amber)"/>
+          <path d="M 252 329 L 278 329 L 278 368 L 615 368 L 615 316 L 643 316" fill="none" stroke="#34d399" stroke-width="2" class="flow-line" marker-end="url(#arr-green)"/>
+          <line x1="582" y1="108" x2="643" y2="108" stroke="#34d399" stroke-width="2" class="flow-line" marker-end="url(#arr-green)"/>
+          <line x1="582" y1="210" x2="643" y2="210" stroke="#38bdf8" stroke-width="2" class="flow-line" marker-end="url(#arr-blue)"/>
+          <line x1="748" y1="142" x2="748" y2="174" stroke="#34d399" stroke-width="1.8" class="flow-line-slow"/>
+          <line x1="748" y1="244" x2="748" y2="278" stroke="#34d399" stroke-width="2" class="flow-line" marker-end="url(#arr-green)"/>
         </svg>
-        <div class="diagram-caption">图 1：实时数据流架构图（动态虚线代表事件驱动的增量流向）</div>
+        <div class="diagram-caption">图 1：现货 + 合约统一 <code>totalEq</code> 实时架构流程图</div>
       </div>
     </section>
 
     <!-- SECTION 4 -->
     <section id="s4" class="reveal">
-      <h2>四、核心边界：必须从当月 1 号 0 点起算，缺失快照怎么处理？</h2>
-      <p>在<strong>硬性要求从当月 1 号 00:00（T0）起算</strong>的前提下：所有<strong>月内新开仓位（<code>cTime &gt;= T0</code>）</strong>直接用 <code>positions</code> + <code>positions-history</code> 即为 100% 精确。唯一需要处理的是<strong>跨月老仓位（<code>cTime &lt; T0</code>）</strong>：</p>
+      <h2>四、无 1 号快照还原原理：<code>bills-archive</code> + <code>ccy list</code> + 跨月 <code>UPL(T0)</code></h2>
 
-      <table>
-        <thead>
-          <tr>
-            <th style="width:24%;">场景与策略</th>
-            <th style="width:24%;">所需接口</th>
-            <th style="width:18%;">精度评级</th>
-            <th style="width:34%;">具体做法与差异说明</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><strong>常规场景：有 1 号 0 点快照</strong></td>
-            <td><strong>纯 <code>positions</code></strong>（零 <code>bills</code>）</td>
-            <td><span class="tag tag-ok">100% 精确</span></td>
-            <td>1 日 00:00 落库 <code>realizedPnl + upl</code>，整月扣减基线，误差 <code>$0.0000</code>。</td>
-          </tr>
-          <tr>
-            <td><strong>无快照 — 策略 A：纯 positions 近似</strong></td>
-            <td><code>positions</code> + <code>markPx(T0)</code> K 线</td>
-            <td><span class="tag tag-warn">UPL 精确，2 项偏差</span></td>
-            <td>剥离 T0 前价格浮盈，但无法剥离 T0 前开仓/资金费及跨期加减仓。</td>
-          </tr>
-          <tr>
-            <td><strong>无快照 — 策略 B：按需 1 次精准补齐</strong></td>
-            <td>仅对该 <code>instId</code> 调 1 次 <code>fills</code> + <code>bills-archive</code></td>
-            <td><span class="tag tag-ok">100% 精确</span></td>
-            <td>冷启动补齐 T0 基线落库，此后永久切回纯 WS 增量，日常零 <code>bills</code>。</td>
-          </tr>
-        </tbody>
-      </table>
-
-      <h3>4.1 为什么无 1 号快照时，只用 <code>positions</code> 无法做到 100% 精确？</h3>
-      <div class="callout callout-amber">
-        <strong>1. 无历史时刻快照接口：</strong><code>GET /positions</code> 只返回此刻（Now）状态，不支持 <code>asOf=11月1日00:00</code>。<br/>
-        <strong>2. 费用与部分平仓盈亏为全生命周期累计数：</strong><code>fee</code> / <code>fundingFee</code> / <code>realizedPnl</code> 从 <code>cTime</code> 累加至今，单靠仓位接口无法拆出 10 月与 11 月各占多少。<br/>
-        <strong>3. 跨期加减仓无法唯一反推 <code>pos(T0)</code> 与 <code>avgPx(T0)</code>：</strong>10 月开 10 张、11 月加 5 张再平 8 张后，当前只剩 7 张，必须靠 <code>fills-history</code> 倒推 1 号 0 点的精确张数与均价。
-      </div>
-
-      <h3>4.2 账单（<code>bills-archive</code>）还原月初快照的原理、字段与查询范围</h3>
-      <p><strong>核心原理：</strong>OKX 交易账户账单类似<strong>银行流水账</strong>——任何改变现金余额的事件（平仓盈亏、手续费、资金费、划转、强平）都会记录一笔流水，且每一行都带有变动后的精确余额 <code>bal</code> 与变动额 <code>balChg</code>。因此可通过以下两种方式还原 <code>CashBal(T0)</code>（注意：未平仓浮盈 <code>UPL(T0)</code> 尚未进账单，需另由跨月持仓 + <code>markPx(T0)</code> 补齐）：</p>
-      <ul>
-        <li><strong>方法 1（最快，推荐）：</strong>直接查 <code>ts &lt;= T0</code> 的最新 1 条账单，读取其 <code>bal</code> 字段即为 <code>CashBal(T0)</code>（<strong>每币种仅 1 次请求，免分页</strong>）。</li>
-        <li><strong>方法 2（兜底）：</strong>若 T0 之前 3 个月无账单，则倒推 <code>CashBal(T0) = CashBal(Now) - Σ balChg(T0, Now]</code>。</li>
-      </ul>
-      <p><strong>用到的 5 个账单字段：</strong><code>ccy</code>（币种）、<code>ts</code>（时间戳）、<code>bal</code>（变动后账户余额）、<code>balChg</code>（本笔变动额）、<code>type</code>（账单类型，如 <code>1</code>=划转、<code>2</code>=交易、<code>8</code>=资金费）。</p>
-      <p><strong>如果用户有 N 个 <code>instId</code>，需要遍历 N 次吗？不需要！</strong></p>
+      <h3>4.1 为什么不需要遍历 300+ 币种，也不需要分页高频合约账单？</h3>
+      <p>从余额守恒可知：一个币种如果在 <code>T0</code> 余额 &gt; 0，到 <code>Now</code> 要么<strong>仍有余额</strong>（在 <code>/account/balance</code> 里），要么在 <code>(T0, Now]</code> 期间<strong>被现货卖空或转出归零</strong>。因此只需取 3 个轻量接口的并集即可 100% 拿全 <code>ccy list</code>（通常仅 2～8 个币种）：</p>
       <table>
         <thead>
           <tr>
             <th style="width:26%;">查询目标</th>
-            <th style="width:26%;">查询维度（无需遍历 N 个 instId）</th>
-            <th style="width:24%;">时间范围</th>
-            <th style="width:24%;">接口开销</th>
+            <th style="width:28%;">接口与过滤条件</th>
+            <th style="width:22%;">时间范围</th>
+            <th style="width:24%;">开销说明</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td><strong><code>CashBal(T0)</code>（方法 1）</strong></td>
-            <td>按 <strong><code>ccy</code></strong>（通常仅 1～4 个币种，如 USDT/BTC）</td>
-            <td><code>end = T0, limit = 1</code><br/><span style="font-size:12px;color:var(--muted);">（最多回溯 OKX 近 3 个月）</span></td>
-            <td><strong>每币种 1 次请求</strong></td>
+            <td><strong>当前非零币种</strong></td>
+            <td><code>GET /api/v5/account/balance</code></td>
+            <td>实时（Now）</td>
+            <td><strong>1 次请求</strong></td>
           </tr>
           <tr>
-            <td><strong><code>CashBal(T0)</code>（方法 2 兜底）</strong></td>
-            <td>全账户一次查（不传 <code>instId</code>）</td>
-            <td><code>begin = T0, end = Now</code><br/><span style="font-size:12px;color:var(--muted);">（1～30 天，月内窗口）</span></td>
-            <td>按 100 条/页分页</td>
+            <td><strong>卖空归零的现货币种</strong></td>
+            <td><code>fills-history?instType=SPOT</code></td>
+            <td><code>begin=T0, end=Now</code></td>
+            <td>仅查现货，<strong>跳过高频合约</strong></td>
           </tr>
           <tr>
-            <td><strong>净划转 <code>NetTransfers</code></strong></td>
-            <td>全账户 + <code>type = 1</code>（不传 <code>instId</code>）</td>
-            <td><code>begin = T0, end = Now</code><br/><span style="font-size:12px;color:var(--muted);">（1～30 天）</span></td>
-            <td>通常 <strong>1 页</strong></td>
+            <td><strong>转空归零的币种 &amp; 净划转</strong></td>
+            <td><code>bills-archive?type=1</code>（过滤 <code>subType∈{11,12}</code>）</td>
+            <td><code>begin=T0, end=Now</code></td>
+            <td>通常 <strong>&lt;1 页</strong>（0～20 条）</td>
           </tr>
           <tr>
-            <td><strong>跨月仓位 <code>fills-history</code></strong></td>
-            <td><strong>仅</strong>查 <code>cTime &lt; T0</code> 的跨月合约（通常 0～3 个，非全部 N 个）</td>
-            <td><code>begin = T0, end = Now</code><br/><span style="font-size:12px;color:var(--muted);">（1～30 天）</span></td>
-            <td>仅跨月合约少量分页</td>
+            <td><strong>每个币种的 <code>CashBal(T0)</code></strong></td>
+            <td><code>bills-archive?ccy=c&amp;end=T0&amp;limit=1</code></td>
+            <td><code>ts &lt;= T0</code>（近 3 个月内）</td>
+            <td><strong>每币种 1 次</strong>，直接读 <code>bal</code></td>
+          </tr>
+          <tr>
+            <td><strong>跨月合约 <code>UPL(T0)</code></strong></td>
+            <td><code>fills-history?instId=&lt;跨月合约&gt;</code> + <code>markPx(T0)</code></td>
+            <td><code>begin=T0, end=Now</code></td>
+            <td>仅针对 <code>cTime &lt; T0</code> 合约</td>
           </tr>
         </tbody>
       </table>
+      <p style="font-size:13.5px; color:var(--muted);">用到的 6 个账单字段：<code>ccy</code>（币种）、<code>ts</code>（时间戳）、<code>bal</code>（变动后余额）、<code>balChg</code>（变动额）、<code>type</code>（<code>1</code>=划转）、<code>subType</code>（<code>11</code>=转入，<code>12</code>=转出）。</p>
 
-      <h3>4.3 跨月仓位 <code>UPL(T0)</code> 零误差还原案例（直观验证）</h3>
+      <h3>4.2 跨月合约 <code>UPL(T0)</code> 零误差还原数值案例</h3>
       <div class="formula-wrap">
         <button class="copy-btn" onclick="copyFormula(this)">复制案例</button>
-        <div class="formula-box">【真实交易过程（假设 11 月 1 日 00:00 未拍快照）】
-  • 10 月 25 日：初始现金 $10,000，开多 1 BTC（100张, ctVal=0.01）@ $60,000，开仓费 -$30 → 现金变为 $9,970
-  • 11 月 1 日 00:00 (T0)：BTC 标记价 = $65,000
-      → 真实 totalEq(T0) = $9,970 (现金) + 1 × ($65,000 - $60,000) (UPL) = $14,970
-  • 11 月 10 日：在 $68,000 全平，平仓费 -$34 → 现金变为 $9,970 + $8,000 - $34 = $17,936
-      → 真实 11 月 PnL = $17,936 - $14,970 = +$2,966（即 11 月涨幅 +$3,000 扣除 11 月平仓费 -$34）
+        <div class="formula-box">【真实交易过程（11 月 1 日 00:00 未拍快照）】
+  • 10 月 25 日：初始现金 $10,000，开多 1 BTC（100张, ctVal=0.01）@ $60,000，开仓费 -$30 → 现金 $9,970
+  • 11 月 1 日 00:00 (T0)：BTC 标记价 = $65,000 → 真实 totalEq(T0) = $9,970 + $5,000 = $14,970
+  • 11 月 10 日：在 $68,000 全平，平仓费 -$34 → 现金 $17,936 → 真实 11 月 PnL = $17,936 - $14,970 = +$2,966
 
 【无快照还原步骤（误差 = $0.00）】
-  1. Cash(T0)：调 bills-archive?ccy=USDT&amp;end=T0&amp;limit=1 → 直接拿到 bal = $9,970（10 月 -$30 开仓费已自动扣完！）
-  2. Q(T0) &amp; avgPx(T0)：由 positions-history + fills-history(T0→Now) 还原 → 1 BTC @ $60,000
-  3. markPx(T0)：由 history-mark-price-candles（00:00:00 1m K 线开盘价）拿到 → $65,000
-  4. UPL(T0) = 100 × 0.01 × ($65,000 - $60,000) = +$5,000 → 还原 totalEq(T0) = $9,970 + $5,000 = $14,970
-  5. 还原 11 月 PnL = $17,936 - $14,970 = +$2,966 → 与真实值完全一致（误差 $0.00）！
-
-【唯一会产生误差的 2 种边界情况】
-  1. 跨月仓位在 T0 之后既有加仓又有部分平仓，但跳过 fills-history 未倒推；
-  2. 该跨月仓位开仓时间超过 3 个月（超出 OKX fills-history 保留期）且在 T0 之后反复加减仓。</div>
+  1. Cash(T0)：bills-archive?ccy=USDT&amp;end=T0&amp;limit=1 → 直接拿 bal = $9,970（10 月 -$30 开仓费已自动扣完！）
+  2. Q(T0) &amp; avgPx(T0)：必经 fills-history(T0→Now) 还原（防部分成交/加减仓）→ 1 BTC @ $60,000
+  3. markPx(T0)：history-mark-price-candles（00:00:00 1m 开盘价）→ $65,000
+  4. UPL(T0) = 100 × 0.01 × ($65,000 - $60,000) = +$5,000 → 还原 totalEq(T0) = $14,970
+  5. 还原 11 月 PnL = $17,936 - $14,970 = +$2,966（与真实值完全一致，误差 $0.00！）</div>
       </div>
     </section>
 
     <!-- SECTION 5 -->
     <section id="s5" class="reveal">
-      <h2>五、全平事件交互式时序图（<code>pos == "0"</code> 闭环）</h2>
-      <p>点击下方按钮，动态回放一次真实的 OKX 全平事件闭环（含 <code>pos=="0"</code> 清空盈亏与 <code>(posId, cTime)</code> 延迟队列精准匹配）：</p>
-
-      <div class="diagram-card">
-        <div class="sim-bar">
-          <button class="sim-btn" id="simBtn" onclick="replaySequence()">▶ 模拟一次全平闭环</button>
-          <span class="sim-status" id="simStatus">点击左侧按钮，逐步高亮演示 WS → 延迟队列 → $0.0000 入账</span>
-        </div>
-
-        <svg viewBox="0 0 860 330" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system, PingFang SC, Microsoft YaHei, sans-serif">
-          <defs>
-            <marker id="s-arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-              <path d="M 0 1 L 10 5 L 0 9 z" fill="#94a3b8" />
-            </marker>
-            <marker id="s-red" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-              <path d="M 0 1 L 10 5 L 0 9 z" fill="#f87171" />
-            </marker>
-            <marker id="s-green" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-              <path d="M 0 1 L 10 5 L 0 9 z" fill="#34d399" />
-            </marker>
-          </defs>
-
-          <rect x="30" y="14" width="150" height="36" rx="8" fill="#1e293b" stroke="#38bdf8"/>
-          <text x="105" y="37" text-anchor="middle" font-size="12.5" font-weight="700" fill="#f8fafc">OKX WS (positions)</text>
-
-          <rect x="275" y="14" width="170" height="36" rx="8" fill="#0284c7"/>
-          <text x="360" y="37" text-anchor="middle" font-size="12.5" font-weight="700" fill="#ffffff">榜单增量服务 (Redis/DB)</text>
-
-          <rect x="530" y="14" width="180" height="36" rx="8" fill="#334155"/>
-          <text x="620" y="37" text-anchor="middle" font-size="12.5" font-weight="700" fill="#f8fafc">OKX REST (history)</text>
-
-          <line x1="105" y1="50" x2="105" y2="314" stroke="rgba(148,163,184,0.35)" stroke-width="1.5" stroke-dasharray="4,4"/>
-          <line x1="360" y1="50" x2="360" y2="314" stroke="rgba(56,189,248,0.45)" stroke-width="1.5" stroke-dasharray="4,4"/>
-          <line x1="620" y1="50" x2="620" y2="314" stroke="rgba(148,163,184,0.35)" stroke-width="1.5" stroke-dasharray="4,4"/>
-
-          <g class="seq-step lit" id="step1">
-            <line x1="105" y1="84" x2="356" y2="84" stroke="#34d399" stroke-width="2" marker-end="url(#s-green)"/>
-            <text x="230" y="76" text-anchor="middle" font-size="11.5" font-weight="600" fill="#34d399">1. 开仓 / 加仓 / 部分平仓 (pos &gt; 0)</text>
-            <text x="230" y="99" text-anchor="middle" font-size="10.5" fill="var(--svg-sub)">含完整 realizedPnl + upl + idxPx → 纯内存更新（0 REST）</text>
-          </g>
-
-          <g class="seq-step lit" id="step2">
-            <line x1="105" y1="142" x2="356" y2="142" stroke="#f87171" stroke-width="2" marker-end="url(#s-red)"/>
-            <text x="230" y="134" text-anchor="middle" font-size="11.5" font-weight="600" fill="#f87171">2. 全平推送 (pos == "0", posId=P, cTime=C)</text>
-            <text x="230" y="157" text-anchor="middle" font-size="10.5" fill="#f87171">OKX 清空 realizedPnl = "" → 移入 pending_close 防抖</text>
-          </g>
-
-          <g class="seq-step lit" id="step3">
-            <line x1="360" y1="196" x2="616" y2="196" stroke="#38bdf8" stroke-width="2" marker-end="url(#s-arr)"/>
-            <text x="488" y="188" text-anchor="middle" font-size="11.5" font-weight="600" fill="#38bdf8">3. 延迟队列查 1 次 (limit=5)</text>
-            <text x="488" y="211" text-anchor="middle" font-size="10.5" fill="var(--svg-sub)">严格匹配 row.posId == P &amp;&amp; row.cTime == C</text>
-            <rect x="640" y="176" width="205" height="50" rx="8" fill="rgba(251,191,36,0.12)" stroke="#fbbf24"/>
-            <text x="742" y="197" text-anchor="middle" font-size="11" font-weight="700" fill="#fbbf24">1–2s 索引延迟退避</text>
-            <text x="742" y="215" text-anchor="middle" font-size="10.5" fill="var(--svg-sub)">未命中则 1s→2s→5s→15s 重试</text>
-          </g>
-
-          <g class="seq-step lit" id="step4">
-            <line x1="620" y1="258" x2="364" y2="258" stroke="#34d399" stroke-width="2" marker-end="url(#s-green)"/>
-            <text x="492" y="250" text-anchor="middle" font-size="11.5" font-weight="600" fill="#34d399">4. 命中最终 realizedPnl（币本位按 uTime 指数价折算）</text>
-          </g>
-
-          <g class="seq-step lit" id="step5">
-            <rect x="255" y="276" width="210" height="34" rx="8" fill="#059669"/>
-            <text x="360" y="297" text-anchor="middle" font-size="12" font-weight="700" fill="#ffffff">5. 落袋 closed_pnl · 误差 $0.0000</text>
-          </g>
-        </svg>
-      </div>
-
-      <h3>5.1 其他私有 WS 频道全平实测对比</h3>
-      <table>
-        <thead>
-          <tr>
-            <th style="width:22%;">WS 私有频道</th>
-            <th style="width:15%;">全用户可用？</th>
-            <th style="width:37%;">全平瞬间实际推送内容（实测抓包）</th>
-            <th style="width:26%;">结论</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><code>positions</code></td>
-            <td><span class="tag tag-ok">是</span></td>
-            <td>推送 <code>pos:"0"</code> 与精确 <code>posId/cTime/uTime</code>，但清空 <code>realizedPnl:""</code></td>
-            <td>触发全平事件 + 提供匹配主键</td>
-          </tr>
-          <tr>
-            <td><code>balance_and_position</code></td>
-            <td><span class="tag tag-ok">是</span></td>
-            <td><code>posData</code> 不含 <code>realizedPnl/pnl/fee/cTime</code></td>
-            <td>无法用于仓位级 PnL 落袋</td>
-          </tr>
-          <tr>
-            <td><code>fills</code></td>
-            <td><span class="tag tag-err">否 (64003)</span></td>
-            <td>VIP 门槛限制，普通散户订阅直接报错</td>
-            <td>10 万散户榜单不可用</td>
-          </tr>
-          <tr>
-            <td><code>orders</code></td>
-            <td><span class="tag tag-ok">是</span></td>
-            <td>推送平仓成交的 <code>fillPnl</code> 与 <code>fillFee</code></td>
-            <td>不覆盖交割到期与资金费，仅辅助</td>
-          </tr>
-        </tbody>
-      </table>
-
-      <div class="callout callout-amber">
-        <strong>严禁只用 <code>posId</code> 判重：</strong>实测你的 <code>SOL-USDT-SWAP</code> 历史记录，5 笔不同交易全部复用同一个 <code>posId=4128004816484012033</code>！延迟队列必须严格匹配 <strong><code>row.posId == posId &amp;&amp; row.cTime == cTime</code></strong>。
-      </div>
-    </section>
-
-    <!-- SECTION 6 -->
-    <section id="s6" class="reveal">
-      <h2>六、接口清单、字段映射与逐行计算示例</h2>
-      <table>
-        <thead>
-          <tr>
-            <th style="width:28%;">接口 / 频道</th>
-            <th style="width:14%;">类型</th>
-            <th style="width:22%;">调用时机</th>
-            <th style="width:36%;">用途</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><code>GET /api/v5/account/positions</code></td>
-            <td><span class="tag tag-info">私有 REST</span></td>
-            <td>0 点预热 / 重连（1 次）</td>
-            <td>加载当前持仓并写入 <code>user_open_positions</code>。</td>
-          </tr>
-          <tr>
-            <td><code>GET /api/v5/account/positions-history</code></td>
-            <td><span class="tag tag-info">私有 REST</span></td>
-            <td>冷启动 / WS <code>pos=="0"</code></td>
-            <td>拉取本月已平仓 &amp; 全平按 <code>(posId, cTime)</code> 查最终 <code>realizedPnl</code>。</td>
-          </tr>
-          <tr>
-            <td><code>wss://ws.okx.com/ws/v5/private</code><br/><code>positions / ANY</code></td>
-            <td><span class="tag tag-ok">私有 WS</span></td>
-            <td>常驻长连接</td>
-            <td>毫秒级推送全品类持仓变更、<code>idxPx</code> 与全平信号。</td>
-          </tr>
-          <tr>
-            <td><code>GET /api/v5/market/history-index-candles</code></td>
-            <td><span class="tag tag-info">公共 REST</span></td>
-            <td>仅币本位全平入账</td>
-            <td>按 <code>uTime</code> 查 <code>BTC-USD</code> 指数价将币本位盈亏折算 USD。</td>
-          </tr>
-        </tbody>
-      </table>
-
-      <h3>6.1 逐行计算示例（真实模拟盘实测数据）</h3>
-      <div class="formula-wrap">
-        <button class="copy-btn" onclick="copyFormula(this)">复制示例</button>
-        <div class="formula-box">// 唯一仓位主键
-pos_key = (instId, posSide, cTime)
-
-// 示例 1：跨月 USDT 永续（ETH-USDT-SWAP，cTime &lt; T0）
-//   T0 快照：snapshot_pnl(T0) = realizedPnl(-0.1525) + upl(+0.0360) = -$0.1165
-//   WS 持仓推送：{pos:"2", ccy:"USDT", realizedPnl:"-0.1525", upl:"+0.3240"}
-//     → open_positions_pnl[key] = (-0.1525 + 0.3240) × 1.0 - (-0.1165) = +$0.2880
-//   WS 全平推送：{pos:"0", realizedPnl:""} → 按 (posId, cTime) 查 history 得 realizedPnl = "+0.2728"
-//     → closed_pnl_usd += (+0.2728 × 1.0) - (-0.1165) = +$0.3893
-
-// 示例 2：月内币本位永续（BTC-USD-SWAP，cTime &gt;= T0，t0_offset = 0）
-//   WS 持仓推送：{pos:"1", ccy:"BTC", idxPx:"60044.30", realizedPnl:"-0.00000075", upl:"+0.00000007"}
-//     → open_positions_pnl[key] = (-0.00000075 + 0.00000007) × 60044.30 = -$0.0407
-//   WS 全平推送：{pos:"0"} → 查 history 得 "-0.00000159" BTC × $60,097.10 = -$0.0958
-
-// 实时榜单总 PnL
-MonthlyPnL = closed_pnl_usd + sum(open_positions_pnl.values())</div>
-      </div>
-    </section>
-
-    <!-- SECTION 7 -->
-    <section id="s7" class="reveal">
-      <h2>七、全品类模拟盘实测数据汇总</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>合约品类</th>
-            <th>实测合约 ID</th>
-            <th>结算币种</th>
-            <th>实测操作路径</th>
-            <th class="num">WS 增量</th>
-            <th class="num">REST 对账</th>
-            <th class="num">误差</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><strong>USDT 本位永续</strong></td>
-            <td><code>ETH-USDT-SWAP</code> / <code>SOL-USDT-SWAP</code></td>
-            <td><code>USDT</code></td>
-            <td>跨期全平 + 开/半平/全平 + 划转</td>
-            <td class="num">+$0.2833</td>
-            <td class="num">+$0.2833</td>
-            <td class="num" style="color:var(--green);font-weight:700;">$0.0000</td>
-          </tr>
-          <tr>
-            <td><strong>币本位永续</strong></td>
-            <td><code>BTC-USD-SWAP</code></td>
-            <td><code>BTC</code></td>
-            <td>开(+1) → 平(-1) (-0.00000159 BTC)</td>
-            <td class="num">-$0.0958</td>
-            <td class="num">-$0.0958</td>
-            <td class="num" style="color:var(--green);font-weight:700;">$0.0000</td>
-          </tr>
-          <tr>
-            <td><strong>币本位交割</strong></td>
-            <td><code>BTC-USD-261225</code></td>
-            <td><code>BTC</code></td>
-            <td>开(+1) → 平(-1) (-0.00000169 BTC)</td>
-            <td class="num">-$0.1018</td>
-            <td class="num">-$0.1018</td>
-            <td class="num" style="color:var(--green);font-weight:700;">$0.0000</td>
-          </tr>
-          <tr>
-            <td><strong>USDC 结算交割</strong></td>
-            <td><code>BTC-USD_UM-261225</code></td>
-            <td><code>USDC</code></td>
-            <td>开(+1) → 平(-1) (-0.07330419 USDC)</td>
-            <td class="num">-$0.0733</td>
-            <td class="num">-$0.0733</td>
-            <td class="num" style="color:var(--green);font-weight:700;">$0.0000</td>
-          </tr>
-          <tr>
-            <td><strong>现货（跨期+清仓）</strong><br/><span style="font-size:12px;color:var(--muted);">验证 <code>totalEq</code> + WS <code>account</code></span></td>
-            <td><code>SOL-USDT</code><br/><span style="font-size:12px;color:var(--muted);">+ BTC/ETH/OKB/USDC/USDT</span></td>
-            <td><code>SOL</code> / <code>USDT</code></td>
-            <td>T0 前买 0.2 SOL → T0 后 +50 USDT 划转 + 加买 0.1 + 全部卖出清仓</td>
-            <td class="num">SOL: <code>0.199840</code><br/>Eq: <code>$72,746.62</code></td>
-            <td class="num">SOL: <code>0.199840</code><br/>Eq: <code>$72,749.72</code></td>
-            <td class="num" style="color:var(--green);font-weight:700;">数量 <code>0.000000</code><br/>权益 <code>0.0043%</code></td>
-          </tr>
-        </tbody>
-      </table>
-      <div class="callout callout-blue">
-        <strong>现货实测关键验证：</strong>买入并卖出 <code>SOL-USDT</code> 现货（<code>tdMode="cash"</code>）期间，<code>/positions</code>、<code>/positions-history</code> 与 WS <code>positions</code> 均为 <strong>0 条记录 / 0 条推送</strong>，证实仓位增量法<strong>无法覆盖现货</strong>；改用 WS <code>account</code> + <code>ccy list</code> 并集 + 单次 <code>end=T0&amp;limit=1</code> 读 <code>bal</code> 后，即便 <code>SOL</code> 已被全卖归零，仍实现了 <strong>0 误差数量还原</strong>与 <strong>0.0043%</strong> 总权益还原精度。
-      </div>
-    </section>
-
-    <!-- SECTION 8 -->
-    <section id="s8" class="reveal">
-      <h2>八、10 万用户生产落库方案（双场景 + 重启容灾）</h2>
+      <h2>五、10 万用户生产落库方案（双场景 + 重启容灾）</h2>
       <ul>
-        <li><strong>场景一（1 号 0 点前提前预热 10 万存量用户）：</strong>T0 前 60～5 分钟匀速预热 <code>GET /positions</code> + 建连 WS（~30–55 QPS）；<code>00:00:00.000</code> 冻结 1 份公共 <code>markPx(T0)</code> 表，本地读 Redis/DB 重算 <code>UPL(T0)</code> 并批量落库（<strong>0 次 0 点私有 REST，0ms 价格偏移</strong>）。</li>
-        <li><strong>场景二（1 号～30 号月中新插入用户）：</strong>先调 <code>positions</code> + <code>positions-history</code> 分桶——无跨月老仓 <strong>~200ms 零 bills 完成</strong>；有跨月老仓仅针对具体 <code>instId</code> 异步补齐一次 T0 基线后永久切回 WS 增量。</li>
+        <li><strong>场景一（1 号 0 点前提前上线 10 万存量用户）：</strong>T0 前 60～5 分钟平滑预热每个用户的 <code>cashBal</code> + 活跃合约 <code>(pos, avgPx)</code> 并建立 WS <code>account</code> 连接（~30–55 QPS）；<code>00:00:00.000</code> 冻结 <strong>1 份全市场共享 <code>idxPx(T0) + markPx(T0)</code> 表</strong>，本地毫秒级统一重算所有 10 万用户的 <code>totalEq(T0)</code> 批量落库（<strong>0 次 0 点 REST 尖峰，0ms 横截面价格偏移</strong>）。</li>
+        <li><strong>场景二（1 号～30 号月中新插入用户）：</strong>冷启动执行一次「第四节无快照还原」写入 <code>monthly_equity_snapshots</code> 与 <code>daily_net_transfers</code>，随后接入 WS <code>account</code> 永久同构运行。</li>
+        <li><strong>服务重启容灾：</strong>重启后直接从 DB 加载 <code>monthly_equity_snapshots</code> 与 <code>daily_net_transfers</code>，重连 WS <code>account</code> 自动收到最新 <code>totalEq(Now)</code>，并按 <code>last_sync_ts</code> 补齐重启窗口内可能发生的 <code>type=1</code> 划转即可。</li>
       </ul>
 
       <table>
         <thead>
           <tr>
-            <th style="width:24%;">表名 / 介质</th>
-            <th style="width:28%;">唯一主键（幂等）</th>
+            <th style="width:26%;">表名 / 存储介质</th>
+            <th style="width:26%;">唯一主键（幂等）</th>
             <th style="width:48%;">核心字段与用途</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td><code>monthly_position_snapshots</code> (DB)</td>
-            <td><code>(month, uid, inst_id, pos_side, c_time)</code></td>
-            <td>仅存 1 号 0 点<strong>活跃仓位</strong>的 <code>snapshot_pnl_t0_usd</code>（或按用户级汇总 1 条标量 <code>user_t0_pos_pnl</code>，对总榜数学完全等价）。</td>
+            <td><code>monthly_equity_snapshots</code><br/><span style="font-size:12px;color:var(--muted);">DB 持久化</span></td>
+            <td><code>(month, uid)</code></td>
+            <td><code>total_eq_t0_usd</code>, <code>cash_usd_t0</code>, <code>upl_usd_t0</code>, <code>source</code>（<code>midnight_freeze</code> / <code>mid_month_backfill</code>），10 万用户仅 <strong>10 万行/月</strong>。</td>
           </tr>
           <tr>
-            <td><code>user_open_positions</code> (Redis+DB)</td>
-            <td><code>(uid, inst_id, pos_side, c_time)</code></td>
-            <td><code>pos, avg_px, ccy, realized_pnl_usd, upl_usd, u_time</code>（WS 实时写 Redis，成交立即写 DB，行情 5–10s 节流刷盘）。</td>
+            <td><code>daily_net_transfers</code><br/><span style="font-size:12px;color:var(--muted);">DB 持久化</span></td>
+            <td><code>(uid, date)</code></td>
+            <td><code>transfer_in_usd</code>, <code>transfer_out_usd</code>, <code>net_transfer_usd</code>（按天聚合 <code>type=1, subType∈{11,12}</code>，全月最多 30 行/用户）。</td>
           </tr>
           <tr>
-            <td><code>user_closed_positions</code> (DB)</td>
-            <td><code>(uid, inst_id, pos_side, c_time)</code></td>
-            <td>全平查库命中 <code>(posId, cTime)</code> 后写入一次，唯一键天然防重。</td>
-          </tr>
-          <tr>
-            <td><code>monthly_leaderboard</code> (Redis ZSET)</td>
+            <td><code>monthly_leaderboard</code><br/><span style="font-size:12px;color:var(--muted);">Redis ZSET + DB</span></td>
             <td><code>leaderboard:{YYYY-MM} → uid</code></td>
-            <td><code>score = closed_pnl_usd + Σ open_pnl_usd</code>，10 万用户 <code>O(log N)</code> 毫秒级排名。</td>
+            <td><code>score = totalEq(Now) - SUM(daily_net_transfers) - total_eq_t0_usd</code>，10 万用户 <code>O(log N)</code> 毫秒级排名。</td>
           </tr>
         </tbody>
       </table>
     </section>
 
-    <!-- SECTION 9 -->
-    <section id="s9" class="reveal">
-      <h2>九、上线前 5 大必避 OKX 深坑</h2>
+    <!-- SECTION 6 -->
+    <section id="s6" class="reveal">
+      <h2>六、OKX 模拟盘实测证据汇总</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>实测场景</th>
+            <th>涉及品种</th>
+            <th>实测操作路径</th>
+            <th class="num">真实值 (GT)</th>
+            <th class="num">无快照还原值</th>
+            <th class="num">误差</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>现货跨期 + 全卖清仓 + 划转</strong><br/><span style="font-size:12px;color:var(--muted);">验证 WS <code>account</code> + 1 次 <code>bal</code></span></td>
+            <td><code>SOL-USDT</code> 现货<br/>+ BTC/ETH/OKB/USDC/USDT</td>
+            <td>T0 前买 0.2 SOL → T0 后转入 +50 USDT + 加买 0.1 + 全部卖出清仓</td>
+            <td class="num">SOL: <code>0.199840</code><br/>USDT: <code>2525.4407</code><br/>Eq: <code>$72,749.72</code></td>
+            <td class="num">SOL: <code>0.199840</code><br/>USDT: <code>2525.4407</code><br/>Eq: <code>$72,746.62</code></td>
+            <td class="num" style="color:var(--green);font-weight:700;">数量 <code>0.000000</code><br/>划转 <code>$0.0000</code><br/>权益 <code>0.0043%</code></td>
+          </tr>
+          <tr>
+            <td><strong>跨期合约全平 + 跨期加仓 + 划转</strong><br/><span style="font-size:12px;color:var(--muted);">验证 <code>fills-history</code> + <code>markPx(T0)</code></span></td>
+            <td><code>BTC-USDT-SWAP</code><br/><code>ETH-USDT-SWAP</code></td>
+            <td>T0 前开多 BTC(+2) / ETH(+2) → T0 后 +100 USDT 划转 + 全平 ETH + 加仓 BTC(9笔)</td>
+            <td class="num">BTC: <code>2 @ 59915.31</code><br/>ETH: <code>2 @ 1684.58</code><br/>USDT: <code>2443.5864</code></td>
+            <td class="num">BTC: <code>2 @ 59915.31</code><br/>ETH: <code>2 @ 1684.58</code><br/>USDT: <code>2443.5864</code></td>
+            <td class="num" style="color:var(--green);font-weight:700;">均价 <code>0</code><br/>现金 <code>$0.0000</code><br/>权益 <code>0.018%</code></td>
+          </tr>
+          <tr>
+            <td><strong>现货能否进 <code>positions</code> 接口</strong></td>
+            <td><code>SOL-USDT</code> (<code>tdMode=cash</code>)</td>
+            <td>买入 0.1 SOL 持仓中 &amp; 卖出后分别查询</td>
+            <td class="num" colspan="2"><code>/positions</code>: 0 · <code>/positions-history</code>: 0 · WS <code>positions</code>: 0</td>
+            <td class="num"><span class="tag tag-err">证实不可用</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- SECTION 7 -->
+    <section id="s7" class="reveal">
+      <h2>七、上线前必避的 5 个 OKX 接口深坑</h2>
       <div class="callout callout-red">
-        <strong>1. WS <code>pos=="0"</code> 清空盈亏 + 1–2s 历史索引延迟：</strong>用 <code>pending_close</code> 防抖 + 持久化延迟队列按 <code>(posId, cTime)</code> 精确匹配。<br/>
-        <strong>2. <code>posId</code> 跨交易复用：</strong>绝对不能只用 <code>posId</code> 判重，必须绑定 <code>cTime</code>。<br/>
-        <strong>3. WS <code>fills</code> 频道有 VIP 门槛（<code>64003</code>）：</strong>散户榜单不要依赖 <code>fills</code> WS。<br/>
-        <strong>4. <code>bills</code> 仅保留 7 天：</strong>查 1 个月账单/划转必须用 <code>bills-archive</code>（保留 3 个月）。<br/>
-        <strong>5. WS <code>8443</code> 端口即将下线：</strong>直接使用 <strong><code>443</code> 端口</strong>并在鉴权循环跳过 <code>code: 64010</code> 的 <code>notice</code> 帧。
+        <strong>1. <code>GET /api/v5/account/bills</code> 仅保留近 7 天：</strong>回溯 1 个月账单/划转必须调用 <code>GET /api/v5/account/bills-archive</code>（保留近 3 个月）；近期 7 天内的实时账单优先查 <code>bills</code>。<br/>
+        <strong>2. 划转过滤必须精确：</strong>REST 传 <code>type=1</code> 一次拉回转入与转出，代码侧再过滤 <code>subType ∈ {"11", "12"}</code>，防止交易账户内部保证金划拨误算。<br/>
+        <strong>3. 稳定币估值别硬编码 <code>1.00</code>：</strong>OKX 计算 <code>totalEq</code> 时按实时 <code>USDT-USD</code>（如 <code>0.9985</code>）指数折算，还原 <code>totalEq(T0)</code> 时同步拉取 <code>USDT-USD</code> / <code>USDC-USD</code> 指数 K 线即可消除 $3 级别折溢价偏差。<br/>
+        <strong>4. WS <code>8443</code> 端口即将下线：</strong>直接使用 <strong><code>443</code> 端口</strong>（<code>wss://ws.okx.com/ws/v5/private</code>），并在鉴权收包循环中跳过 <code>code: 64010</code> 的 <code>notice</code> 帧。<br/>
+        <strong>5. WS <code>fills</code> 频道有 VIP 门槛（<code>64003</code>）：</strong>普通散户无法订阅，切勿依赖。
       </div>
     </section>
 
+    <!-- COLLAPSIBLE APPENDIX: ARCHIVED POSITIONS-ONLY METHOD -->
+    <details class="appendix">
+      <summary>附录（已归档，非当前主方案）：纯合约仓位增量法（<code>positions + WS</code>，不含现货）</summary>
+      <p style="font-size:13.8px;"><em>说明：由于新需求明确需要包含现货，而 OKX <code>positions</code> / <code>positions-history</code> / WS <code>positions</code> 均不包含现货（实测返回 0 条），本方案已降级为备选归档，仅适用于未来若单独开设「纯合约榜单」的场景。</em></p>
+      <ul style="font-size:13.8px;">
+        <li><strong>公式：</strong><code>MonthlyPnL = Σ closed_realizedPnl + Σ open_(realizedPnl + upl) - T0_pos_snapshot</code>（全品类实测 USDT 永续、币本位永续 <code>BTC-USD-SWAP</code>、币本位交割 <code>BTC-USD-261225</code>、USDC 结算交割 <code>BTC-USD_UM-261225</code>，WS 增量与 REST 对账误差均为 <code>$0.0000</code>）。</li>
+        <li><strong>必避深坑：</strong>① WS 全平帧（<code>pos=="0"</code>）会清空 <code>realizedPnl</code> 为 <code>""</code>，需 <code>pending_close</code> + 延迟队列查 <code>positions-history</code>；② OKX 会跨交易复用同一个 <code>posId</code>，延迟队列必须严格匹配 <strong><code>(posId, cTime)</code></strong>；③ 币本位合约需用 WS <code>idxPx</code> 实时折算 USD。</li>
+      </ul>
+    </details>
+
     <footer class="doc-footer">
       <div><strong>GitHub 仓库：</strong><a href="https://github.com/sydowma/okx-pnl-verifier" style="color:var(--primary);text-decoration:none;">sydowma/okx-pnl-verifier</a></div>
-      <div>核心代码：<code>ws_positions_tracker.py</code> · <code>positions_only.py</code> · <code>live_multi_contract_test.py</code></div>
+      <div>核心脚本：<code>live_spot_account_test.py</code> · <code>live_demo_experiment.py</code> · <code>calculator.py</code></div>
     </footer>
   </article>
 
   <script>
-    // 1. Reading progress bar + active nav scroll-spy
     const progressBar = document.getElementById('progressBar');
     const sections = Array.from(document.querySelectorAll('section[id]'));
     const navLinks = Array.from(document.querySelectorAll('#navLinks a'));
@@ -1206,7 +643,6 @@ MonthlyPnL = closed_pnl_usd + sum(open_positions_pnl.values())</div>
       const scrollTop = window.scrollY;
       const docHeight = document.documentElement.scrollHeight - window.innerHeight;
       progressBar.style.width = (docHeight > 0 ? (scrollTop / docHeight) * 100 : 0) + '%';
-
       let current = sections[0]?.id;
       for (const sec of sections) {
         if (sec.getBoundingClientRect().top <= 130) current = sec.id;
@@ -1216,18 +652,13 @@ MonthlyPnL = closed_pnl_usd + sum(open_positions_pnl.values())</div>
     window.addEventListener('scroll', onScroll, { passive: true });
     onScroll();
 
-    // 2. Scroll reveal animations
     const observer = new IntersectionObserver((entries) => {
       entries.forEach(e => {
-        if (e.isIntersecting) {
-          e.target.classList.add('visible');
-          observer.unobserve(e.target);
-        }
+        if (e.isIntersecting) { e.target.classList.add('visible'); observer.unobserve(e.target); }
       });
     }, { threshold: 0.08 });
     document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
 
-    // 3. Dark / Light Theme toggle
     function toggleTheme() {
       const html = document.documentElement;
       const isDark = html.getAttribute('data-theme') === 'dark';
@@ -1235,51 +666,12 @@ MonthlyPnL = closed_pnl_usd + sum(open_positions_pnl.values())</div>
       document.getElementById('themeBtn').textContent = isDark ? '🌙 深色模式' : '☀ 浅色模式';
     }
 
-    // 4. Formula Tabs
-    function switchTab(panelId, btn) {
-      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-      document.getElementById(panelId).classList.add('active');
-      btn.classList.add('active');
-    }
-
-    // 5. Copy formula button
     function copyFormula(btn) {
-      const text = btn.nextElementSibling.textContent;
-      navigator.clipboard.writeText(text).then(() => {
+      navigator.clipboard.writeText(btn.nextElementSibling.textContent).then(() => {
         const orig = btn.textContent;
         btn.textContent = '✓ 已复制';
         setTimeout(() => btn.textContent = orig, 1500);
       });
-    }
-
-    // 6. Interactive Sequence Replay
-    let simTimer = null;
-    function replaySequence() {
-      if (simTimer) clearInterval(simTimer);
-      const steps = [
-        { id: 'step1', msg: '[1/5] WS 推送 pos=1, realizedPnl=-0.0944, upl=+0.0200 → 内存 O(1) 实时更新 (0 REST)' },
-        { id: 'step2', msg: '[2/5] WS 全平帧 pos="0", realizedPnl="" → 移入 pending_close 保持原 PnL 防抖' },
-        { id: 'step3', msg: '[3/5] 延迟队列 1s 后查 positions-history，严格匹配 posId && cTime...' },
-        { id: 'step4', msg: '[4/5] 命中精确记录！final realizedPnl = -$0.1059（币本位自动按 uTime 折算 USD）' },
-        { id: 'step5', msg: '[5/5] 原子写入 user_closed_positions，刷新 Redis ZSET → 误差 $0.0000 ✓' }
-      ];
-      document.querySelectorAll('.seq-step').forEach(s => s.classList.remove('lit'));
-      const status = document.getElementById('simStatus');
-      let idx = 0;
-
-      function tick() {
-        if (idx >= steps.length) {
-          clearInterval(simTimer);
-          simTimer = null;
-          return;
-        }
-        document.getElementById(steps[idx].id).classList.add('lit');
-        status.textContent = steps[idx].msg;
-        idx++;
-      }
-      tick();
-      simTimer = setInterval(tick, 1200);
     }
   </script>
 </body>
