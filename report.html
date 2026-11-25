@@ -637,10 +637,14 @@
 
 【步骤 2：有符号持仓张数 Q(p) 与 T0 时刻未实现盈亏 UPL_usd(p, T0)】
   • Q(p) 规则：posSide=="net" → pos；posSide=="long" → +|pos|；posSide=="short" → -|pos|
+  • 缺失 T0 快照的跨月仓位（cTime &lt; T0）必经 fills-history 还原（因无法预知 T0 后是否有部分成交/加减仓）：
+      - 查 GET /api/v5/trade/fills-history?instType=...&amp;instId=&lt;跨月合约&gt;&amp;begin=T0&amp;end=Now
+      - Q(T0) = Q(Now) - Σ fill_signed_sz(T0, Now]   （其中 Q(Now)=0 表示已全平；buy 为 +fillSz，sell 为 -fillSz）
+      - avgPx(T0)：若 T0 后仅平仓则等于最新 avgPx；若 T0 后有加仓则按加权均价反推（或从 cTime 正向回放 fills）
   • 正向合约 (ctType == "linear"，如 BTC-USDT-SWAP / BTC-USD_UM-261225)：
-      UPL_usd(p, T0) = Q(p) × ctVal × (markPx(T0) - avgPx) × P_usd(ccy, T0)
+      UPL_usd(p, T0) = Q(T0) × ctVal × (markPx(T0) - avgPx(T0)) × P_usd(ccy, T0)
   • 反向/币本位合约 (ctType == "inverse"，如 BTC-USD-SWAP / BTC-USD-261225)：
-      UPL_usd(p, T0) = Q(p) × ctVal × (1 / avgPx - 1 / markPx(T0)) × P_usd(ccy, T0)
+      UPL_usd(p, T0) = Q(T0) × ctVal × (1 / avgPx(T0) - 1 / markPx(T0)) × P_usd(ccy, T0)
 
 【步骤 3：月初 0 点基线快照（仅对 T0 时刻未平仓位 cTime &lt; T0）】
   SnapshotPnL(p, T0) = realizedPnl(p, T0) × P_usd(ccy, T0) + UPL_usd(p, T0)

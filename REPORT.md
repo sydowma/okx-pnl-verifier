@@ -35,18 +35,26 @@
   - 持仓实时更新：`P_usd = ws.idxPx`（兜底 `ws.markPx`，无需额外 REST）
   - 平仓落袋入账：`P_usd = IndexCandle(ccy-USD, uTime)`
 
-**2. 有符号张数 `Q(p)` 与 `T0` 时刻未实现盈亏 `UPL_usd(p, T0)`：**
+**2. 有符号张数 `Q(T0)`、均价 `avgPx(T0)` 与 `T0` 时刻未实现盈亏 `UPL_usd(p, T0)`：**
 - `posSide == "net"` → `Q = pos`；`posSide == "long"` → `Q = +|pos|`；`posSide == "short"` → `Q = -|pos|`
+- **缺失 `T0` 快照的跨月仓位（`cTime < T0`）必须调用 `fills-history`**（因无法预知 `T0` 之后是否存在部分成交或加减仓）：
+
+```text
+# 仅针对该跨月 instId 查询：GET /api/v5/trade/fills-history?instType=...&instId=<instId>&begin=T0&end=Now
+Q(T0) = Q(Now) - Σ fill_signed_sz(T0, Now]      # Q(Now)=0 表示已全平；buy=+fillSz，sell=-fillSz
+# avgPx(T0)：仅平仓则等于最新 avgPx；有加仓则反推加权均价（或从 cTime 正向回放 fills）
+```
+
 - **正向合约**（`ctType == "linear"`，如 `BTC-USDT-SWAP`、`BTC-USD_UM-261225`）：
 
 ```text
-UPL_usd(p, T0) = Q(p) × ctVal × (markPx(T0) - avgPx) × P_usd(ccy, T0)
+UPL_usd(p, T0) = Q(T0) × ctVal × (markPx(T0) - avgPx(T0)) × P_usd(ccy, T0)
 ```
 
 - **反向/币本位合约**（`ctType == "inverse"`，如 `BTC-USD-SWAP`、`BTC-USD-261225`）：
 
 ```text
-UPL_usd(p, T0) = Q(p) × ctVal × (1 / avgPx - 1 / markPx(T0)) × P_usd(ccy, T0)
+UPL_usd(p, T0) = Q(T0) × ctVal × (1 / avgPx(T0) - 1 / markPx(T0)) × P_usd(ccy, T0)
 ```
 
 **3. 月初 0 点基线快照（仅对 `T0` 时刻未平仓位 `cTime < T0`）：**
