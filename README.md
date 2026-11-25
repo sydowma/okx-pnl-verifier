@@ -3,8 +3,8 @@
 A Python verification toolkit and reference implementation for building a **monthly derivatives PnL leaderboard** on **OKX v5 OpenAPI** — validated live across **USDT-M Perpetual**, **Coin-M Perpetual**, **Coin-M Delivery Futures**, and **USDC-Settled Linear Contracts**.
 
 For the full Chinese technical feasibility report:
-- **View directly on GitHub (with Mermaid diagrams & LaTeX formulas):** [REPORT.md](./REPORT.md)
-- **Standalone print/PDF HTML version (with SVG diagrams):** [report.html](./report.html)
+- **Interactive Web Report (GitHub Pages, with animated SVG diagrams):** https://sydowma.github.io/okx-pnl-verifier/report.html
+- **GitHub Markdown Version (Mermaid diagrams):** [REPORT.md](./REPORT.md)
 
 ---
 
