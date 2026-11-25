@@ -78,26 +78,33 @@ MonthlyPnL_user = Σ MonthPnL_closed(p) + Σ MonthPnL_open(p)
 
 ---
 
-### 3.2 方案 B：账户总权益法（全账户：现货 + 合约）
+### 3.2 方案 B：账户总权益法（全账户：现货 + 合约 — 计入现货时唯一推荐）
+
+> **实测结论：** 买入并卖出 `SOL-USDT` 现货（`tdMode="cash"`）期间，`GET /positions`、`GET /positions-history` 与 WS `positions` 均为 **0 条记录 / 0 条推送**。只要榜单需要计入**现货**，必须采用本方案（WS `account` 直接推送实时 `totalEq`，无需 `pos=="0"` 延迟队列）。
 
 ```text
 MonthlyPnL_equity = totalEq(Now) - NetTransfers(T0, Now] - totalEq(T0)
 ```
 
-- **净划转（按天聚合，仅查 `bills-archive?type=1`）：**
+- **净划转（按天聚合，查 `bills-archive?type=1` 并过滤 `subType ∈ {"11"(转入), "12"(转出)}`）：**
 
 ```text
-DailyNetTransfer(day) = Σ [ bill.balChg × P_usd(bill.ccy, bill.ts) ]   (balChg > 0 转入，< 0 转出)
+DailyNetTransfer(day) = Σ [ bill.balChg × P_usd(bill.ccy, bill.ts) ]   (subType="11" 为正，"12" 为负)
 NetTransfers(T0, Now] = Σ DailyNetTransfer(day)                        (最多 30 条日聚合记录相加)
 ```
 
-- **缺失 `totalEq(T0)` 快照时的还原：**
+- **缺失 `totalEq(T0)` 快照时的还原（含 `ccy list` 精准发现，无需遍历 300+ 币种）：**
 
 ```text
-totalEq(T0) = Σ [ CashBal_c(T0) × P_usd(c, T0) ] + Σ UPL_usd(p, T0)
-```
+# 1. 拿全用户 T0 时刻可能非零的 ccy list（完全跳过高频合约账单，通常仅 2～8 个币种）
+CCY(T0) = { GET /account/balance 当前非零币种 }
+        ∪ { fills-history?instType=SPOT&begin=T0&end=Now 现货交易涉及币种（抓出已卖空归零币种） }
+        ∪ { bills-archive?type=1&begin=T0&end=Now 划转涉及币种（抓出已转空归零币种） }
 
-其中 `CashBal_c(T0)` 直接读取 `GET /api/v5/account/bills-archive?ccy=c&end=T0&limit=1` 的 `bal` 字段（1 次请求，免分页）。
+# 2. 对每个 ccy 调 1 次 bills-archive?ccy=c&end=T0&limit=1 直接读 bal 得到 CashBal_c(T0)
+# 3. 用指数 K 线（含 USDT-USD / USDC-USD 消除折溢价）估值，并加上跨月合约 UPL_usd(p, T0)：
+totalEq(T0) = Σ [ CashBal_c(T0) × IndexPx(c-USD, T0) ] + Σ UPL_usd(p, T0)
+```
 
 ---
 
@@ -203,6 +210,7 @@ sequenceDiagram
 | **币本位永续** | `BTC-USD-SWAP` | `BTC` (`idxPx` 折算) | 开(+1) → 平(-1) (`-0.00000159 BTC`) | `-$0.0958` | `-$0.0958` | **`$0.0000`** |
 | **币本位交割** | `BTC-USD-261225` | `BTC` (`idxPx` 折算) | 开(+1) → 平(-1) (`-0.00000169 BTC`) | `-$0.1018` | `-$0.1018` | **`$0.0000`** |
 | **USDC 结算交割** | `BTC-USD_UM-261225` | `USDC` | 开(+1) → 平(-1) (`-0.07330419 USDC`) | `-$0.0733` | `-$0.0733` | **`$0.0000`** |
+| **现货（跨期+清仓）** | `SOL-USDT` + 全账户 6 币种 | `SOL` / `USDT` | T0 前买 0.2 SOL → +50 USDT 划转 + 加买 0.1 + 全卖清仓 | SOL `0.199840` / Eq `$72,746.62` | SOL `0.199840` / Eq `$72,749.72` | **数量 `0` / 权益 `0.0043%`** |
 
 ---
 

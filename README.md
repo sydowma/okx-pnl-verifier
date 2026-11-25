@@ -20,8 +20,9 @@ For the full Chinese technical feasibility report:
   - Positions with `cTime >= T0` are immediately 100% exact (2 REST calls, 0 `bills`).
   - Only if cross-month positions (`cTime < T0`) exist: use either mark-candle `UPL(T0)` approximation (zero `bills`) or a one-time scoped `fills-history` + `bills-archive` backfill for that specific `instId`, then switch permanently to WS incremental.
 
-- **Alternative Lightweight Architecture (`totalEq` + Daily `type=1` Transfer Aggregation):**
-  - If your leaderboard should include **Spot + Derivatives combined** and you want a simpler WS state machine (no `pos == "0"` retry queue), use `totalEq(Now) - SUM(daily_net_transfer_usd) - totalEq(T0)` with WS `account`, filtering `bills-archive` strictly by `type=1` (usually <1 page/month) and reconstructing missing `Cash@T0` in 1 call via `bills-archive?ccy=<ccy>&end=T0&limit=1`.
+- **Spot + Derivatives Unified Architecture (`totalEq` + Daily `type=1, subType∈{11,12}` Transfers + WS `account`):**
+  - Live Spot testing (`SOL-USDT`, `tdMode="cash"`) confirmed that `/positions`, `/positions-history`, and WS `positions` return **0 records/events** for Spot. Once Spot is included, use `totalEq(Now) - SUM(daily_net_transfer_usd) - totalEq(T0)` with WS `account` (no `pos == "0"` retry queue needed).
+  - For mid-month new users missing `totalEq(T0)`, discover the exact `ccy` list via `GET /account/balance ∪ fills-history(instType=SPOT) ∪ bills-archive(type=1)` (skipping derivatives bills, typically 2–8 currencies), then run 1 call/ccy (`bills-archive?ccy=c&end=T0&limit=1`) to read `bal`. Live test achieved **`0.000000` coin qty diff** (even for sold-out `SOL`) and **`0.0043%` `totalEq(T0)` diff**.
   - Both architectures compute in **`O(1)` per WS event** at 100k-user scale (<150 MB RAM).
 
 ---

@@ -545,10 +545,10 @@
     <section id="s1" class="reveal">
       <h2>一、执行摘要（Executive Summary）</h2>
       <div class="summary-box">
-        <div class="title">核心结论：两种轻量化方案均已实盘验证可行，10 万用户量级均为 O(1) 实时更新</div>
-        <p style="margin-bottom: 6px;">1. <strong>纯合约榜单（推荐 — 仓位增量法）：</strong>冷启动调 2 次 REST（<code>positions-history</code> + <code>positions</code>），随后常驻私有 WS <code>positions</code> 增量更新；天然免疫充提划转与现货涨跌，4 大合约品类实测对账误差均为 <strong><code>$0.0000</code></strong>。</p>
-        <p style="margin-bottom: 6px;">2. <strong>全账户榜单（现货 + 合约 — 优化总权益法）：</strong>采用 <code>totalEq(Now) - SUM(日聚合 type=1 划转) - totalEq(T0)</code> + WS <code>account</code>，过滤 <code>type=1</code> 后每月通常不足 1 页，状态机最简。</p>
-        <p style="margin-bottom: 0;">3. <strong>10 万用户 1 号 0 点零偏移快照：</strong>提前平滑预热持仓与 WS 连接；<code>00:00:00.000</code> 冻结 <strong>1 份全市场共享 <code>markPx(T0)</code> 表</strong>，本地毫秒级统一重算（<strong>0 次 0 点私有 REST 尖峰，0ms 横截面价格偏移</strong>）。</p>
+        <div class="title">核心结论：是否计入「现货」决定最终架构选型（两套方案均已实盘验证，10 万用户量级均为 O(1)）</div>
+        <p style="margin-bottom: 6px;">1. <strong>纳入现货 + 合约（全账户统一推荐 — 优化版 <code>totalEq</code> 权益法）：</strong>实测证实 OKX <code>positions</code> / <code>positions-history</code> / WS <code>positions</code> 对现货返回 <strong>0 条记录</strong>；计入现货必须使用 <code>totalEq(Now) - NetTransfers(type=1, subType∈{11,12}) - totalEq(T0)</code> + WS <code>account</code>，实测现货跨期还原 <code>SOL/USDT</code> 数量误差 <strong><code>0.000000</code></strong>、总权益误差仅 <strong><code>0.0043%</code></strong>，且无需 <code>pos=="0"</code> 延迟队列。</p>
+        <p style="margin-bottom: 6px;">2. <strong>仅算纯合约（不含现货 — 仓位增量法）：</strong>冷启动调 2 次 REST（<code>positions-history</code> + <code>positions</code>），随后常驻 WS <code>positions</code> 增量更新；4 大合约品类实测对账误差均为 <strong><code>$0.0000</code></strong>。</p>
+        <p style="margin-bottom: 0;">3. <strong>10 万用户 0 点零偏移快照 + 精准 <code>ccy list</code> 发现：</strong>0 点冻结 1 份共享 <code>idxPx(T0) + markPx(T0)</code> 表本地毫秒级重算；月中无快照新用户通过 <code>balance ∪ SPOT fills ∪ type=1 bills</code> 取并集拿全 <code>ccy list</code>（通常仅 2～8 个币种），每币种 1 次 <code>end=T0&amp;limit=1</code> 读 <code>bal</code> 即可还原。</p>
       </div>
 
       <div class="kpi-grid">
@@ -665,16 +665,23 @@
       <div id="tab-eq" class="tab-panel">
         <div class="formula-wrap">
           <button class="copy-btn" onclick="copyFormula(this)">复制公式</button>
-          <div class="formula-box">【核心公式】
+          <div class="formula-box">【核心公式（统一覆盖：现货 + 杠杆 + USDT/USDC/币本位永续 + 交割 + 期权）】
   MonthlyPnL_equity = totalEq(Now) - NetTransfers(T0, Now] - totalEq(T0)
+  ※ totalEq(Now) 直接由私有 WS `account` 频道实时推送（无需 pos=="0" 延迟队列）
 
-【净划转（仅查 bills-archive?type=1，按天聚合为 daily_net_transfer_usd）】
-  DailyNetTransfer(day) = Σ [ bill.balChg × P_usd(bill.ccy, bill.ts) ]   (balChg &gt; 0 转入，&lt; 0 转出)
+【净划转（查 bills-archive?type=1，代码过滤 subType ∈ {"11"(转入), "12"(转出)}，按天聚合）】
+  DailyNetTransfer(day) = Σ [ bill.balChg × P_usd(bill.ccy, bill.ts) ]   (subType="11" 为正，"12" 为负)
   NetTransfers(T0, Now] = Σ DailyNetTransfer(day)                        (最多 30 条日聚合记录相加)
 
-【缺失 totalEq(T0) 快照时的还原公式】
-  totalEq(T0) = Σ [ CashBal_c(T0) × P_usd(c, T0) ] + Σ UPL_usd(p, T0)
-  ※ CashBal_c(T0) 直接取 GET /api/v5/account/bills-archive?ccy=c&amp;end=T0&amp;limit=1 返回的 bal 字段（1 次请求，免分页）</div>
+【缺失 totalEq(T0) 快照时的完整还原公式】
+  1. 精准获取 ccy_list（无需遍历 300+ 币种，跳过高频合约账单）：
+       CCY(T0) = {GET /account/balance 当前非零币种}
+               ∪ {fills-history?instType=SPOT&amp;begin=T0&amp;end=Now 现货交易涉及币种（抓出已卖空归零币种）}
+               ∪ {bills-archive?type=1&amp;begin=T0&amp;end=Now 划转涉及币种（抓出已转空归零币种）}
+  2. 每币种 1 次请求拿 CashBal_c(T0)：
+       GET /api/v5/account/bills-archive?ccy=c&amp;end=T0&amp;limit=1 → 直接读 bal 字段（免分页！）
+  3. 估值与跨月合约 UPL(T0) 合并（稳定币用 USDT-USD / USDC-USD 指数 K 线消除折溢价）：
+       totalEq(T0) = Σ [ CashBal_c(T0) × IndexPx(c-USD, T0) ] + Σ UPL_usd(跨月合约 p, T0)</div>
         </div>
       </div>
 
@@ -1114,8 +1121,20 @@ MonthlyPnL = closed_pnl_usd + sum(open_positions_pnl.values())</div>
             <td class="num">-$0.0733</td>
             <td class="num" style="color:var(--green);font-weight:700;">$0.0000</td>
           </tr>
+          <tr>
+            <td><strong>现货（跨期+清仓）</strong><br/><span style="font-size:12px;color:var(--muted);">验证 <code>totalEq</code> + WS <code>account</code></span></td>
+            <td><code>SOL-USDT</code><br/><span style="font-size:12px;color:var(--muted);">+ BTC/ETH/OKB/USDC/USDT</span></td>
+            <td><code>SOL</code> / <code>USDT</code></td>
+            <td>T0 前买 0.2 SOL → T0 后 +50 USDT 划转 + 加买 0.1 + 全部卖出清仓</td>
+            <td class="num">SOL: <code>0.199840</code><br/>Eq: <code>$72,746.62</code></td>
+            <td class="num">SOL: <code>0.199840</code><br/>Eq: <code>$72,749.72</code></td>
+            <td class="num" style="color:var(--green);font-weight:700;">数量 <code>0.000000</code><br/>权益 <code>0.0043%</code></td>
+          </tr>
         </tbody>
       </table>
+      <div class="callout callout-blue">
+        <strong>现货实测关键验证：</strong>买入并卖出 <code>SOL-USDT</code> 现货（<code>tdMode="cash"</code>）期间，<code>/positions</code>、<code>/positions-history</code> 与 WS <code>positions</code> 均为 <strong>0 条记录 / 0 条推送</strong>，证实仓位增量法<strong>无法覆盖现货</strong>；改用 WS <code>account</code> + <code>ccy list</code> 并集 + 单次 <code>end=T0&amp;limit=1</code> 读 <code>bal</code> 后，即便 <code>SOL</code> 已被全卖归零，仍实现了 <strong>0 误差数量还原</strong>与 <strong>0.0043%</strong> 总权益还原精度。
+      </div>
     </section>
 
     <!-- SECTION 8 -->
