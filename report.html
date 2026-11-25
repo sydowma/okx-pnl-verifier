@@ -858,6 +858,28 @@
           </tr>
         </tbody>
       </table>
+
+      <h3>4.3 跨月仓位 <code>UPL(T0)</code> 零误差还原案例（直观验证）</h3>
+      <div class="formula-wrap">
+        <button class="copy-btn" onclick="copyFormula(this)">复制案例</button>
+        <div class="formula-box">【真实交易过程（假设 11 月 1 日 00:00 未拍快照）】
+  • 10 月 25 日：初始现金 $10,000，开多 1 BTC（100张, ctVal=0.01）@ $60,000，开仓费 -$30 → 现金变为 $9,970
+  • 11 月 1 日 00:00 (T0)：BTC 标记价 = $65,000
+      → 真实 totalEq(T0) = $9,970 (现金) + 1 × ($65,000 - $60,000) (UPL) = $14,970
+  • 11 月 10 日：在 $68,000 全平，平仓费 -$34 → 现金变为 $9,970 + $8,000 - $34 = $17,936
+      → 真实 11 月 PnL = $17,936 - $14,970 = +$2,966（即 11 月涨幅 +$3,000 扣除 11 月平仓费 -$34）
+
+【无快照还原步骤（误差 = $0.00）】
+  1. Cash(T0)：调 bills-archive?ccy=USDT&amp;end=T0&amp;limit=1 → 直接拿到 bal = $9,970（10 月 -$30 开仓费已自动扣完！）
+  2. Q(T0) &amp; avgPx(T0)：由 positions-history + fills-history(T0→Now) 还原 → 1 BTC @ $60,000
+  3. markPx(T0)：由 history-mark-price-candles（00:00:00 1m K 线开盘价）拿到 → $65,000
+  4. UPL(T0) = 100 × 0.01 × ($65,000 - $60,000) = +$5,000 → 还原 totalEq(T0) = $9,970 + $5,000 = $14,970
+  5. 还原 11 月 PnL = $17,936 - $14,970 = +$2,966 → 与真实值完全一致（误差 $0.00）！
+
+【唯一会产生误差的 2 种边界情况】
+  1. 跨月仓位在 T0 之后既有加仓又有部分平仓，但跳过 fills-history 未倒推；
+  2. 该跨月仓位开仓时间超过 3 个月（超出 OKX fills-history 保留期）且在 T0 之后反复加减仓。</div>
+      </div>
     </section>
 
     <!-- SECTION 5 -->
