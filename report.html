@@ -372,9 +372,12 @@
 
     <!-- SECTION 3 -->
     <section id="s3" class="reveal">
-      <h2>三、系统动态架构流程图（<code>totalEq</code> + WS <code>account</code> 主方案）</h2>
+      <h2>三、系统动态架构流程图（拆分为 2 个独立流程）</h2>
+      <p>为清晰区分两类用户的生命周期，将系统架构拆分为<strong>流程一（月初已定义的 10 万存量用户）</strong>与<strong>流程二（月中动态新增 / 删除的热插拔用户）</strong>：</p>
+
+      <h3>3.1 流程一：月初已定义好的存量用户（10 万候选集 · 零偏移快照 + 实时更新）</h3>
       <div class="diagram-card">
-        <svg viewBox="0 0 880 390" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system, PingFang SC, Microsoft YaHei, sans-serif">
+        <svg viewBox="0 0 880 230" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system, PingFang SC, Microsoft YaHei, sans-serif">
           <defs>
             <marker id="arr-blue" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
               <path d="M 0 1 L 10 5 L 0 9 z" fill="#38bdf8" />
@@ -385,78 +388,123 @@
             <marker id="arr-amber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
               <path d="M 0 1 L 10 5 L 0 9 z" fill="#fbbf24" />
             </marker>
+            <marker id="arr-red" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 1 L 10 5 L 0 9 z" fill="#f87171" />
+            </marker>
             <linearGradient id="grad-green" x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stop-color="#059669"/>
               <stop offset="100%" stop-color="#0284c7"/>
             </linearGradient>
           </defs>
 
-          <!-- Lanes -->
-          <rect x="10" y="12" width="260" height="366" rx="12" fill="rgba(56,189,248,0.04)" stroke="rgba(148,163,184,0.28)" stroke-dasharray="5,4"/>
-          <text x="140" y="34" text-anchor="middle" font-size="13" font-weight="700" fill="var(--svg-text)">阶段一：T0 基线（预热 / 补齐）</text>
+          <!-- Step 1 -->
+          <rect x="14" y="42" width="176" height="118" rx="10" fill="var(--svg-box)" stroke="#38bdf8" stroke-width="1.5"/>
+          <text x="102" y="66" text-anchor="middle" font-size="12.5" font-weight="700" fill="#38bdf8">1. T0 前平滑预热</text>
+          <text x="102" y="88" text-anchor="middle" font-size="11" fill="var(--svg-text)">10 万候选集 list</text>
+          <text x="102" y="108" text-anchor="middle" font-size="10.5" fill="var(--svg-sub)">匀速拉 cashBal + pos</text>
+          <text x="102" y="126" text-anchor="middle" font-size="10.5" fill="var(--svg-sub)">提前建立 WS 长连接</text>
+          <text x="102" y="144" text-anchor="middle" font-size="10.5" fill="#38bdf8">(~30–55 QPS, 无尖峰)</text>
 
-          <rect x="290" y="12" width="315" height="366" rx="12" fill="rgba(56,189,248,0.06)" stroke="rgba(56,189,248,0.38)" stroke-dasharray="5,4"/>
-          <text x="447" y="34" text-anchor="middle" font-size="13" font-weight="700" fill="#38bdf8">阶段二：实时 WS 增量（443 端口）</text>
+          <!-- Step 2 -->
+          <rect x="226" y="42" width="186" height="118" rx="10" fill="var(--svg-box)" stroke="#34d399" stroke-width="1.5"/>
+          <text x="319" y="66" text-anchor="middle" font-size="12.5" font-weight="700" fill="#34d399">2. 00:00:00 零偏移快照</text>
+          <text x="319" y="88" text-anchor="middle" font-size="11" fill="var(--svg-text)">冻结 1 份公共价格表</text>
+          <text x="319" y="108" text-anchor="middle" font-size="10.5" fill="var(--svg-sub)">idxPx(T0) + markPx(T0)</text>
+          <text x="319" y="126" text-anchor="middle" font-size="10.5" fill="var(--svg-sub)">本地重算 10 万 totalEq(T0)</text>
+          <text x="319" y="144" text-anchor="middle" font-size="10.5" fill="#34d399">(0 次私有 REST, &lt;1s 落库)</text>
 
-          <rect x="625" y="12" width="245" height="366" rx="12" fill="rgba(52,211,153,0.06)" stroke="rgba(52,211,153,0.38)" stroke-dasharray="5,4"/>
-          <text x="747" y="34" text-anchor="middle" font-size="13" font-weight="700" fill="#34d399">阶段三：持久化 &amp; 10 万级榜单</text>
+          <!-- Step 3 -->
+          <rect x="448" y="24" width="194" height="72" rx="10" fill="var(--svg-box)" stroke="#34d399" stroke-width="1.5"/>
+          <text x="545" y="48" text-anchor="middle" font-size="12" font-weight="700" fill="#34d399">3A. WS `account` 实时流</text>
+          <text x="545" y="68" text-anchor="middle" font-size="10.5" fill="var(--svg-sub)">直接推最新 totalEq(Now)</text>
+          <text x="545" y="84" text-anchor="middle" font-size="10.5" fill="var(--svg-sub)">覆盖现货 + 全部合约</text>
 
-          <!-- Stage 1 -->
-          <rect x="28" y="54" width="224" height="80" rx="9" fill="var(--svg-box)" stroke="#38bdf8" stroke-width="1.5"/>
-          <text x="140" y="76" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--svg-text)">场景一：10 万存量预热</text>
-          <text x="140" y="96" text-anchor="middle" font-size="11" fill="var(--svg-sub)">0 点前预热 cashBal + positions</text>
-          <text x="140" y="114" text-anchor="middle" font-size="11" fill="#38bdf8">00:00 共享价格表重算 totalEq(T0)</text>
+          <rect x="448" y="114" width="194" height="72" rx="10" fill="var(--svg-box)" stroke="#38bdf8" stroke-width="1.5"/>
+          <text x="545" y="138" text-anchor="middle" font-size="12" font-weight="700" fill="#38bdf8">3B. 划转日聚合追踪</text>
+          <text x="545" y="158" text-anchor="middle" font-size="10.5" fill="var(--svg-sub)">type=1, subType∈{11,12}</text>
+          <text x="545" y="174" text-anchor="middle" font-size="10.5" fill="var(--svg-sub)">按天累计 ≤30 行/月</text>
 
-          <rect x="28" y="164" width="224" height="114" rx="9" fill="rgba(251,191,36,0.08)" stroke="#fbbf24" stroke-width="1.5"/>
-          <text x="140" y="186" text-anchor="middle" font-size="12.5" font-weight="700" fill="#fbbf24">场景二：月中新用户补齐</text>
-          <text x="140" y="206" text-anchor="middle" font-size="11" fill="var(--svg-sub)">1. balance ∪ SPOT fills ∪ type=1</text>
-          <text x="140" y="224" text-anchor="middle" font-size="11" fill="var(--svg-sub)">2. 每币种 1 次 end=T0 读 bal</text>
-          <text x="140" y="242" text-anchor="middle" font-size="11" fill="var(--svg-sub)">3. 跨月合约 fills 算 UPL(T0)</text>
-          <text x="140" y="260" text-anchor="middle" font-size="11" fill="#fbbf24">落库后永久切回 WS 实时流</text>
-
-          <rect x="28" y="302" width="224" height="54" rx="9" fill="var(--svg-box)" stroke="#34d399" stroke-width="1.5"/>
-          <text x="140" y="324" text-anchor="middle" font-size="12" font-weight="700" fill="#34d399">monthly_equity_snapshots</text>
-          <text x="140" y="342" text-anchor="middle" font-size="11" fill="var(--svg-sub)">每用户仅 1 条 totalEq(T0) 基线</text>
-
-          <!-- Stage 2 -->
-          <rect x="312" y="64" width="270" height="86" rx="9" fill="var(--svg-box)" stroke="#34d399" stroke-width="1.5"/>
-          <text x="447" y="90" text-anchor="middle" font-size="13" font-weight="700" fill="#34d399">WS `account` 频道</text>
-          <text x="447" y="110" text-anchor="middle" font-size="11" fill="var(--svg-text)">实时推送最新 totalEq(Now)</text>
-          <text x="447" y="130" text-anchor="middle" font-size="10.5" fill="var(--svg-sub)">自动涵盖现货 + 合约 + 资金费 + 手续费</text>
-
-          <rect x="312" y="190" width="270" height="96" rx="9" fill="var(--svg-box)" stroke="#38bdf8" stroke-width="1.5"/>
-          <text x="447" y="216" text-anchor="middle" font-size="13" font-weight="700" fill="#38bdf8">划转增量追踪</text>
-          <text x="447" y="236" text-anchor="middle" font-size="11" fill="var(--svg-text)">WS balance_and_position (transferred)</text>
-          <text x="447" y="254" text-anchor="middle" font-size="10.5" fill="var(--svg-sub)">+ 定时/重连对账 bills-archive?type=1</text>
-          <text x="447" y="272" text-anchor="middle" font-size="10.5" fill="#38bdf8">过滤 subType ∈ {"11", "12"}</text>
-
-          <rect x="312" y="310" width="270" height="46" rx="9" fill="rgba(52,211,153,0.08)" stroke="rgba(52,211,153,0.4)"/>
-          <text x="447" y="338" text-anchor="middle" font-size="11.5" font-weight="700" fill="#34d399">✓ 无需维护 pos=="0" 全平延迟队列</text>
-
-          <!-- Stage 3 -->
-          <rect x="645" y="74" width="206" height="68" rx="9" fill="var(--svg-box)" stroke="#34d399" stroke-width="1.5"/>
-          <text x="748" y="100" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--svg-text)">user_live_equity (Redis)</text>
-          <text x="748" y="120" text-anchor="middle" font-size="11" fill="var(--svg-sub)">最新 totalEq(Now)（1 条/用户）</text>
-
-          <rect x="645" y="176" width="206" height="68" rx="9" fill="var(--svg-box)" stroke="#38bdf8" stroke-width="1.5"/>
-          <text x="748" y="202" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--svg-text)">daily_net_transfers (DB)</text>
-          <text x="748" y="222" text-anchor="middle" font-size="11" fill="var(--svg-sub)">按天聚合（最多 30 行/月）</text>
-
-          <rect x="645" y="280" width="206" height="72" rx="10" fill="url(#grad-green)"/>
-          <text x="748" y="308" text-anchor="middle" font-size="13.5" font-weight="700" fill="#ffffff">Redis ZSET 实时榜单</text>
-          <text x="748" y="328" text-anchor="middle" font-size="11" fill="#e0f2fe">totalEq - Transfers - T0</text>
-          <text x="748" y="344" text-anchor="middle" font-size="10.5" fill="#bae6fd">O(1) 计算 · O(log N) 排序</text>
+          <!-- Step 4 -->
+          <rect x="678" y="54" width="186" height="96" rx="11" fill="url(#grad-green)"/>
+          <text x="771" y="84" text-anchor="middle" font-size="13.5" font-weight="700" fill="#ffffff">4. Redis ZSET 榜单</text>
+          <text x="771" y="106" text-anchor="middle" font-size="11" fill="#e0f2fe">totalEq - Transfers - T0</text>
+          <text x="771" y="126" text-anchor="middle" font-size="10.5" fill="#bae6fd">O(1) 更新 · O(log N) 排序</text>
 
           <!-- Animated Arrows -->
-          <line x1="140" y1="134" x2="140" y2="162" stroke="#38bdf8" stroke-width="1.8" class="flow-line-slow"/>
-          <line x1="140" y1="278" x2="140" y2="300" stroke="#fbbf24" stroke-width="1.8" class="flow-line" marker-end="url(#arr-amber)"/>
-          <path d="M 252 329 L 278 329 L 278 368 L 615 368 L 615 316 L 643 316" fill="none" stroke="#34d399" stroke-width="2" class="flow-line" marker-end="url(#arr-green)"/>
-          <line x1="582" y1="108" x2="643" y2="108" stroke="#34d399" stroke-width="2" class="flow-line" marker-end="url(#arr-green)"/>
-          <line x1="582" y1="210" x2="643" y2="210" stroke="#38bdf8" stroke-width="2" class="flow-line" marker-end="url(#arr-blue)"/>
-          <line x1="748" y1="142" x2="748" y2="174" stroke="#34d399" stroke-width="1.8" class="flow-line-slow"/>
-          <line x1="748" y1="244" x2="748" y2="278" stroke="#34d399" stroke-width="2" class="flow-line" marker-end="url(#arr-green)"/>
+          <line x1="190" y1="101" x2="224" y2="101" stroke="#38bdf8" stroke-width="2.2" class="flow-line" marker-end="url(#arr-blue)"/>
+          <path d="M 412 84 L 430 84 L 430 60 L 446 60" fill="none" stroke="#34d399" stroke-width="2" class="flow-line" marker-end="url(#arr-green)"/>
+          <path d="M 412 118 L 430 118 L 430 150 L 446 150" fill="none" stroke="#38bdf8" stroke-width="2" class="flow-line" marker-end="url(#arr-blue)"/>
+          <path d="M 642 60 L 660 60 L 660 88 L 676 88" fill="none" stroke="#34d399" stroke-width="2" class="flow-line" marker-end="url(#arr-green)"/>
+          <path d="M 642 150 L 660 150 L 660 116 L 676 116" fill="none" stroke="#38bdf8" stroke-width="2" class="flow-line" marker-end="url(#arr-blue)"/>
+
+          <!-- Footer note inside SVG -->
+          <text x="440" y="212" text-anchor="middle" font-size="11" fill="var(--svg-sub)">✓ 全程无需 bills 分页、无需 pos=="0" 延迟队列；次日～30 日实时可见</text>
         </svg>
-        <div class="diagram-caption">图 1：现货 + 合约统一 <code>totalEq</code> 实时架构流程图</div>
+        <div class="diagram-caption">图 1A：月初存量 10 万用户全生命周期动态数据流</div>
+      </div>
+
+      <h3>3.2 流程二：月中动态新增 / 删除的用户（1 号～30 号热插拔）</h3>
+      <div class="diagram-card">
+        <svg viewBox="0 0 880 310" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system, PingFang SC, Microsoft YaHei, sans-serif">
+          <!-- Top Lane: Add User -->
+          <rect x="10" y="10" width="860" height="168" rx="12" fill="rgba(251,191,36,0.05)" stroke="rgba(251,191,36,0.35)" stroke-dasharray="5,4"/>
+          <text x="26" y="32" font-size="12.5" font-weight="700" fill="#fbbf24">分支 A：月中新增用户（无 1 号 0 点快照 → 一次性还原基线后热接入 WS）</text>
+
+          <rect x="24" y="48" width="150" height="110" rx="9" fill="var(--svg-box)" stroke="#fbbf24" stroke-width="1.5"/>
+          <text x="99" y="72" text-anchor="middle" font-size="12" font-weight="700" fill="#fbbf24">1. 新用户入池</text>
+          <text x="99" y="94" text-anchor="middle" font-size="10.5" fill="var(--svg-text)">月中任意天接入</text>
+          <text x="99" y="114" text-anchor="middle" font-size="10.5" fill="var(--svg-sub)">检测 DB 无该月</text>
+          <text x="99" y="132" text-anchor="middle" font-size="10.5" fill="var(--svg-sub)">T0 快照 → 触发补数</text>
+
+          <rect x="206" y="48" width="194" height="110" rx="9" fill="var(--svg-box)" stroke="#fbbf24" stroke-width="1.5"/>
+          <text x="303" y="70" text-anchor="middle" font-size="12" font-weight="700" fill="var(--svg-text)">2. 拿全 ccy_list</text>
+          <text x="303" y="92" text-anchor="middle" font-size="10.5" fill="var(--svg-sub)">balance 当前非零币种</text>
+          <text x="303" y="110" text-anchor="middle" font-size="10.5" fill="var(--svg-sub)">∪ SPOT fills（卖空归零）</text>
+          <text x="303" y="128" text-anchor="middle" font-size="10.5" fill="var(--svg-sub)">∪ type=1（转空归零）</text>
+          <text x="303" y="146" text-anchor="middle" font-size="10.5" fill="#fbbf24">(跳过高频合约账单)</text>
+
+          <rect x="432" y="48" width="206" height="110" rx="9" fill="var(--svg-box)" stroke="#38bdf8" stroke-width="1.5"/>
+          <text x="535" y="70" text-anchor="middle" font-size="12" font-weight="700" fill="#38bdf8">3. 还原 T0 与划转</text>
+          <text x="535" y="92" text-anchor="middle" font-size="10.5" fill="var(--svg-sub)">• 每币种 1 次 end=T0 读 bal</text>
+          <text x="535" y="110" text-anchor="middle" font-size="10.5" fill="var(--svg-sub)">• 跨月合约 fills 算 UPL(T0)</text>
+          <text x="535" y="128" text-anchor="middle" font-size="10.5" fill="var(--svg-sub)">• 补齐 daily_net_transfers</text>
+          <text x="535" y="146" text-anchor="middle" font-size="10.5" fill="#38bdf8">写入 monthly_equity_snapshots</text>
+
+          <rect x="670" y="54" width="184" height="98" rx="10" fill="url(#grad-green)"/>
+          <text x="762" y="84" text-anchor="middle" font-size="12.5" font-weight="700" fill="#ffffff">4. 热接入实时流</text>
+          <text x="762" y="106" text-anchor="middle" font-size="10.5" fill="#e0f2fe">建立 WS `account` 订阅</text>
+          <text x="762" y="126" text-anchor="middle" font-size="10.5" fill="#bae6fd">并入 Redis ZSET 榜单</text>
+          <text x="762" y="142" text-anchor="middle" font-size="10" fill="#dcfce7">(次月 1 号自动进流程一)</text>
+
+          <line x1="174" y1="103" x2="204" y2="103" stroke="#fbbf24" stroke-width="2" class="flow-line" marker-end="url(#arr-amber)"/>
+          <line x1="400" y1="103" x2="430" y2="103" stroke="#fbbf24" stroke-width="2" class="flow-line" marker-end="url(#arr-amber)"/>
+          <line x1="638" y1="103" x2="668" y2="103" stroke="#34d399" stroke-width="2" class="flow-line" marker-end="url(#arr-green)"/>
+
+          <!-- Bottom Lane: Delete / Remove User -->
+          <rect x="10" y="194" width="860" height="106" rx="12" fill="rgba(248,113,113,0.05)" stroke="rgba(248,113,113,0.35)" stroke-dasharray="5,4"/>
+          <text x="26" y="216" font-size="12.5" font-weight="700" fill="#f87171">分支 B：月中删除 / 退榜用户（即时释放连接与榜单席位，保留历史审计记录）</text>
+
+          <rect x="24" y="230" width="190" height="56" rx="9" fill="var(--svg-box)" stroke="#f87171" stroke-width="1.5"/>
+          <text x="119" y="253" text-anchor="middle" font-size="12" font-weight="700" fill="#f87171">1. 移出候选集 / 解绑</text>
+          <text x="119" y="272" text-anchor="middle" font-size="10.5" fill="var(--svg-sub)">收到删除/失效 API 事件</text>
+
+          <rect x="256" y="230" width="208" height="56" rx="9" fill="var(--svg-box)" stroke="#f87171" stroke-width="1.5"/>
+          <text x="360" y="253" text-anchor="middle" font-size="12" font-weight="700" fill="var(--svg-text)">2. 断开 WS &amp; 清理热缓存</text>
+          <text x="360" y="272" text-anchor="middle" font-size="10.5" fill="var(--svg-sub)">Close 私有 WS · DEL user_live_equity</text>
+
+          <rect x="506" y="230" width="166" height="56" rx="9" fill="var(--svg-box)" stroke="#f87171" stroke-width="1.5"/>
+          <text x="589" y="253" text-anchor="middle" font-size="12" font-weight="700" fill="var(--svg-text)">3. 实时移出榜单</text>
+          <text x="589" y="272" text-anchor="middle" font-size="10.5" fill="var(--svg-sub)">Redis ZREM leaderboard</text>
+
+          <rect x="712" y="230" width="142" height="56" rx="9" fill="var(--svg-box)" stroke="rgba(148,163,184,0.5)" stroke-width="1.5"/>
+          <text x="783" y="253" text-anchor="middle" font-size="12" font-weight="700" fill="var(--svg-sub)">4. DB 软删除归档</text>
+          <text x="783" y="272" text-anchor="middle" font-size="10.5" fill="var(--svg-sub)">保留快照备审计</text>
+
+          <line x1="214" y1="258" x2="254" y2="258" stroke="#f87171" stroke-width="2" class="flow-line" marker-end="url(#arr-red)"/>
+          <line x1="464" y1="258" x2="504" y2="258" stroke="#f87171" stroke-width="2" class="flow-line" marker-end="url(#arr-red)"/>
+          <line x1="672" y1="258" x2="710" y2="258" stroke="#f87171" stroke-width="2" class="flow-line-slow" marker-end="url(#arr-red)"/>
+        </svg>
+        <div class="diagram-caption">图 1B：月中动态新增（异步精准补齐 T0）与删除/退榜（秒级释放资源）热插拔流程</div>
       </div>
     </section>
 

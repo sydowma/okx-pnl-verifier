@@ -46,34 +46,33 @@ totalEq(T0) = Σ [ CashBal_c(T0) × IndexPx(c-USD, T0) ] + Σ UPL_usd(p, T0)
 
 ---
 
-## 三、系统架构流程图
+## 三、系统架构流程图（拆分为 2 个独立流程）
+
+### 3.1 流程一：月初已定义好的存量用户（10 万候选集）
 
 ```mermaid
 flowchart LR
-    subgraph S1["阶段一：T0 基线（预热 / 补齐）"]
-        A["场景一：10 万存量预热<br/>00:00 共享价格表重算 totalEq(T0)"]
-        B["场景二：月中新用户补齐<br/>balance ∪ SPOT fills ∪ type=1 → 1次读 bal"]
-        C["DB: monthly_equity_snapshots<br/>每用户仅 1 条 totalEq(T0)"]
-        A --> C
-        B --> C
+    A["1. T0 前 60~5m 平滑预热<br/>拉 cashBal + positions + 建连 WS"] --> B["2. 00:00:00 零偏移快照<br/>1 份公共 idxPx+markPx 表本地重算 totalEq(T0)<br/>(0 次私有 REST, 落库 snapshots)"]
+    B --> C1["3A. WS account 频道<br/>实时推送 totalEq(Now)"]
+    B --> C2["3B. 划转日聚合<br/>type=1, subType∈11/12"]
+    C1 --> D["4. Redis ZSET 实时榜单<br/>totalEq - Transfers - T0<br/>O(1) 更新 · O(log N) 排序"]
+    C2 --> D
+```
+
+### 3.2 流程二：月中动态新增 / 删除的用户（1 号～30 号热插拔）
+
+```mermaid
+flowchart LR
+    subgraph ADD["分支 A：月中新增用户（无 T0 快照）"]
+        N1["1. 新用户入池"] --> N2["2. 拿全 ccy_list<br/>balance ∪ SPOT fills ∪ type=1"]
+        N2 --> N3["3. 还原 T0 与划转<br/>每币种 1 次 end=T0 读 bal<br/>+ 跨月 fills 算 UPL(T0)"]
+        N3 --> N4["4. 热接入 WS account<br/>并入 Redis ZSET 榜单"]
     end
 
-    subgraph S2["阶段二：实时 WS 增量（443 端口）"]
-        D["WS account 频道<br/>实时推送 totalEq(Now)"]
-        E["划转追踪 (type=1, subType∈11/12)<br/>WS transferred + 日聚合对账"]
+    subgraph DEL["分支 B：月中删除 / 退榜用户"]
+        R1["1. 移出候选集 / 解绑"] --> R2["2. 断开私有 WS<br/>清理 Redis 热缓存"]
+        R2 --> R3["3. Redis ZREM 移出榜单<br/>DB 软删除保留审计快照"]
     end
-
-    subgraph S3["阶段三：持久化 & 10 万级榜单"]
-        F["Redis: user_live_equity"]
-        G["DB: daily_net_transfers<br/>最多 30 行/用户/月"]
-        H["Redis ZSET 实时榜单<br/>totalEq - Transfers - T0<br/>O(1) 计算 · O(log N) 排序"]
-        F --> H
-        G --> H
-    end
-
-    C --> H
-    D --> F
-    E --> G
 ```
 
 ---
